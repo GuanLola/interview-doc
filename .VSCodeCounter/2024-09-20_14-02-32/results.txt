@@ -1,0 +1,122 @@
+Date : 2024-09-20 14:02:32
+Directory : /Users/guanyueming/Desktop/github/doc
+Total : 82 files,  43518 codes, 2015 comments, 3425 blanks, all 48958 lines
+
+Languages
++------------+------------+------------+------------+------------+------------+
+| language   | files      | code       | comment    | blank      | total      |
++------------+------------+------------+------------+------------+------------+
+| JavaScript |          9 |     28,802 |      2,013 |         40 |     30,855 |
+| Markdown   |         68 |     13,516 |          0 |      3,379 |     16,895 |
+| JSON       |          4 |      1,155 |          0 |          2 |      1,157 |
+| TypeScript |          1 |         45 |          2 |          4 |         51 |
++------------+------------+------------+------------+------------+------------+
+
+Directories
++-------------------------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| path                                                                                                              | files      | code       | comment    | blank      | total      |
++-------------------------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| .                                                                                                                 |         82 |     43,518 |      2,015 |      3,425 |     48,958 |
+| . (Files)                                                                                                         |          2 |      1,094 |          0 |          1 |      1,095 |
+| docs                                                                                                              |         80 |     42,424 |      2,015 |      3,424 |     47,863 |
+| docs (Files)                                                                                                      |          3 |        120 |          0 |         45 |        165 |
+| docs/.vitepress                                                                                                   |         12 |     28,908 |      2,015 |         45 |     30,968 |
+| docs/.vitepress (Files)                                                                                           |          1 |         45 |          2 |          4 |         51 |
+| docs/.vitepress/cache                                                                                             |         11 |     28,863 |      2,013 |         41 |     30,917 |
+| docs/.vitepress/cache/deps                                                                                        |         11 |     28,863 |      2,013 |         41 |     30,917 |
+| docs/juejin                                                                                                       |          1 |         44 |          0 |         16 |         60 |
+| docs/vue                                                                                                          |         64 |     13,352 |          0 |      3,318 |     16,670 |
+| docs/vue (Files)                                                                                                  |         21 |      5,071 |          0 |      1,265 |      6,336 |
+| docs/vue/es6                                                                                                      |         11 |      2,506 |          0 |        520 |      3,026 |
+| docs/vue/js                                                                                                       |         24 |      4,257 |          0 |      1,188 |      5,445 |
+| docs/vue/vue3                                                                                                     |          8 |      1,518 |          0 |        345 |      1,863 |
++-------------------------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+
+Files
++-------------------------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| filename                                                                                                          | language   | code       | comment    | blank      | total      |
++-------------------------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| /Users/guanyueming/Desktop/github/doc/docs/.vitepress/cache/deps/@theme_index.js                                  | JavaScript |        236 |         12 |         12 |        260 |
+| /Users/guanyueming/Desktop/github/doc/docs/.vitepress/cache/deps/_metadata.json                                   | JSON       |         58 |          0 |          0 |         58 |
+| /Users/guanyueming/Desktop/github/doc/docs/.vitepress/cache/deps/chunk-7LUTEMNG.js                                | JavaScript |      9,236 |         25 |          5 |      9,266 |
+| /Users/guanyueming/Desktop/github/doc/docs/.vitepress/cache/deps/chunk-PAUCAATC.js                                | JavaScript |     11,260 |        215 |          8 |     11,483 |
+| /Users/guanyueming/Desktop/github/doc/docs/.vitepress/cache/deps/package.json                                     | JSON       |          3 |          0 |          1 |          4 |
+| /Users/guanyueming/Desktop/github/doc/docs/.vitepress/cache/deps/vitepress___@vue_devtools-api.js                 | JavaScript |      4,199 |        144 |          5 |      4,348 |
+| /Users/guanyueming/Desktop/github/doc/docs/.vitepress/cache/deps/vitepress___@vueuse_core.js                      | JavaScript |        566 |          1 |          1 |        568 |
+| /Users/guanyueming/Desktop/github/doc/docs/.vitepress/cache/deps/vitepress___@vueuse_integrations_useFocusTrap.js | JavaScript |      1,021 |         77 |          4 |      1,102 |
+| /Users/guanyueming/Desktop/github/doc/docs/.vitepress/cache/deps/vitepress___mark__js_src_vanilla__js.js          | JavaScript |        882 |        781 |          3 |      1,666 |
+| /Users/guanyueming/Desktop/github/doc/docs/.vitepress/cache/deps/vitepress___minisearch.js                        | JavaScript |      1,080 |        757 |          1 |      1,838 |
+| /Users/guanyueming/Desktop/github/doc/docs/.vitepress/cache/deps/vue.js                                           | JavaScript |        322 |          1 |          1 |        324 |
+| /Users/guanyueming/Desktop/github/doc/docs/.vitepress/config.mts                                                  | TypeScript |         45 |          2 |          4 |         51 |
+| /Users/guanyueming/Desktop/github/doc/docs/api-examples.md                                                        | Markdown   |         32 |          0 |         18 |         50 |
+| /Users/guanyueming/Desktop/github/doc/docs/index.md                                                               | Markdown   |         25 |          0 |          4 |         29 |
+| /Users/guanyueming/Desktop/github/doc/docs/juejin/速度优化.md                                                         | Markdown   |         44 |          0 |         16 |         60 |
+| /Users/guanyueming/Desktop/github/doc/docs/markdown-examples.md                                                   | Markdown   |         63 |          0 |         23 |         86 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/404.md                                                             | Markdown   |        119 |          0 |         41 |        160 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/NextTick.md                                                        | Markdown   |        152 |          0 |         40 |        192 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/Observable.md                                                      | Markdown   |        189 |          0 |         37 |        226 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/axios.md                                                           | Markdown   |        773 |          0 |        157 |        930 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/diff.md                                                            | Markdown   |        286 |          0 |         72 |        358 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/es6/==和===.md                                                      | Markdown   |        100 |          0 |         33 |        133 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/es6/Promise.md                                                     | Markdown   |        335 |          0 |         72 |        407 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/es6/SetMap.md                                                      | Markdown   |        300 |          0 |         76 |        376 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/es6/decorator.md                                                   | Markdown   |        209 |          0 |         36 |        245 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/es6/generator.md                                                   | Markdown   |        202 |          0 |         52 |        254 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/es6/module.md                                                      | Markdown   |        229 |          0 |         39 |        268 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/es6/proxy.md                                                       | Markdown   |        225 |          0 |         67 |        292 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/es6/var|let|const.md                                               | Markdown   |        211 |          0 |         39 |        250 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/es6/函数扩展.md                                                        | Markdown   |        174 |          0 |         22 |        196 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/es6/对象扩展.md                                                        | Markdown   |        270 |          0 |         38 |        308 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/es6/数组扩展.md                                                        | Markdown   |        251 |          0 |         46 |        297 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/js/ajax.md                                                         | Markdown   |        145 |          0 |         39 |        184 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/js/bind和call和apply.md                                              | Markdown   |        144 |          0 |         38 |        182 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/js/bom.md                                                          | Markdown   |        143 |          0 |         47 |        190 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/js/dom操作.md                                                        | Markdown   |        242 |          0 |         58 |        300 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/js/new.md                                                          | Markdown   |        132 |          0 |         18 |        150 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/js/this.md                                                         | Markdown   |        283 |          0 |         81 |        364 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/js/typeof和instanceof区别.md                                          | Markdown   |        148 |          0 |         46 |        194 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/js/事件代理.md                                                         | Markdown   |        145 |          0 |         32 |        177 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/js/事件循环.md                                                         | Markdown   |        276 |          0 |         79 |        355 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/js/事件模型.md                                                         | Markdown   |        216 |          0 |         40 |        256 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/js/作用域链.md                                                         | Markdown   |        117 |          0 |         35 |        152 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/js/内存泄露.md                                                         | Markdown   |          8 |          0 |          2 |         10 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/js/原型链.md                                                          | Markdown   |        118 |          0 |         39 |        157 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/js/字符串常用方法.md                                                      | Markdown   |        110 |          0 |         29 |        139 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/js/尾递归.md                                                          | Markdown   |        198 |          0 |         44 |        242 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/js/执行上下文.md                                                        | Markdown   |        232 |          0 |         74 |        306 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/js/数据类型.md                                                         | Markdown   |        184 |          0 |         54 |        238 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/js/数组常用方法.md                                                       | Markdown   |        176 |          0 |         45 |        221 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/js/正则表达式.md                                                        | Markdown   |        309 |          0 |         76 |        385 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/js/深浅拷贝.md                                                         | Markdown   |        172 |          0 |         54 |        226 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/js/类型转换.md                                                         | Markdown   |        129 |          0 |         55 |        184 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/js/继承.md                                                           | Markdown   |        261 |          0 |         75 |        336 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/js/谷歌浏览器的debugger.md                                               | Markdown   |        178 |          0 |         75 |        253 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/js/闭包.md                                                           | Markdown   |        191 |          0 |         53 |        244 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/keep-alive.md                                                      | Markdown   |        255 |          0 |         65 |        320 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/key.md                                                             | Markdown   |        134 |          0 |         39 |        173 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/mixin.md                                                           | Markdown   |        298 |          0 |         76 |        374 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/slot.md                                                            | Markdown   |        212 |          0 |         70 |        282 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/ssr.md                                                             | Markdown   |        410 |          0 |         79 |        489 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/vue3.md                                                            | Markdown   |        212 |          0 |         77 |        289 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/vue3/Proxy.md                                                      | Markdown   |        254 |          0 |         34 |        288 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/vue3/composition.md                                                | Markdown   |        197 |          0 |         46 |        243 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/vue3/modal.md                                                      | Markdown   |        269 |          0 |         50 |        319 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/vue3/treeshaking.md                                                | Markdown   |        111 |          0 |         24 |        135 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/vue3/v-model.md                                                    | Markdown   |        182 |          0 |         52 |        234 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/vue3/性能提升.md                                                       | Markdown   |        184 |          0 |         39 |        223 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/vue3/电子签名.md                                                       | Markdown   |        176 |          0 |         54 |        230 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/vue3/设计.md                                                         | Markdown   |        145 |          0 |         46 |        191 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/修饰符.md                                                             | Markdown   |        174 |          0 |         78 |        252 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/全局和局部注册.md                                                         | Markdown   |         19 |          0 |          6 |         25 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/双向绑定.md                                                            | Markdown   |        167 |          0 |         50 |        217 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/权限管理.md                                                            | Markdown   |        340 |          0 |         85 |        425 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/目录结构.md                                                            | Markdown   |        210 |          0 |         38 |        248 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/自定义指令.md                                                           | Markdown   |        247 |          0 |         50 |        297 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/虚拟DOM.md                                                           | Markdown   |        347 |          0 |         65 |        412 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/跨域.md                                                              | Markdown   |        116 |          0 |         39 |        155 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/过滤器.md                                                             | Markdown   |        167 |          0 |         53 |        220 |
+| /Users/guanyueming/Desktop/github/doc/docs/vue/错误.md                                                              | Markdown   |        244 |          0 |         48 |        292 |
+| /Users/guanyueming/Desktop/github/doc/package-lock.json                                                           | JSON       |      1,077 |          0 |          1 |      1,078 |
+| /Users/guanyueming/Desktop/github/doc/package.json                                                                | JSON       |         17 |          0 |          0 |         17 |
+| Total                                                                                                             |            |     43,518 |      2,015 |      3,425 |     48,958 |
++-------------------------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
