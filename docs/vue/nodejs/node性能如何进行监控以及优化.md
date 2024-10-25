@@ -164,3 +164,88 @@ http.createServer(function (req, res) {
 })
 ```
 
+**代码层面优化**
+
+合并查询，
+将多次查询合并一次，
+减少数据库的查询次数。
+
+```js
+// bad
+for user_id in userIds
+  let account = user_account.findOne(user_id)
+
+// good
+const user_account_map = {} // 注意这个对象将会消耗大量内存。
+user_account.find(user_id in user_ids).forEach(account) {
+  user_account_map[account.user_id] = account
+}
+
+for user_id in userIds
+  var account = user_account_map[user_id]
+```
+
+**内存管理优化**
+
+在`V8`中，主要讲内存分为新生代和老生代两代：
+
+- 新生代：
+对象的存活时间较短。
+新生对象或只经过一次垃圾回收的对象。
+
+- 老生代：
+对象存活时间较长。
+经历过一次或多次垃圾回收的对象。
+
+若新生代内存空间不够，
+直接分配给老生代。
+
+通过减少内存占用，
+可以提高服务器的性能。
+
+如果有内存泄露，
+也会导致大量的对象存储到老生代中，
+服务器性能会大大降低。
+
+如下面情况：
+
+```js
+const buffer = fs.readFileSync(__dirname + '/source/index.htm');
+
+app.use(
+  mount('/', async (ctx) => {
+    ctx.status = 200;
+    ctx.type = 'html';
+    ctx.body = buffer;
+    leak.push(fs.readFileSync(__dirname + '/source/index.htm'))
+  })
+);
+
+const leak = [];
+```
+
+`leak`的内存非常大，
+造成内存泄露，
+应当避免这样的操作，
+通过减少内存使用，
+是提高服务性能的手段之一。
+
+而节省内存最好的方式是使用池，
+其将频用、可复用对象存储起来，
+减少创建和销毁操作。
+
+例如有个图片请求接口，
+每次请求，
+都需要用到类。
+若每次都需要重新`new`这些类，
+并不是很合适，
+在大量请求时，
+频繁创建和销毁这些类，
+造成内存抖动。
+
+使用对象池的机制，
+对这种频繁需要创建和销毁的对象保存在一个对象池中。
+每次用到该对象时，
+就取对象池空闲的对象，
+并对它进行初始化操作，
+从而提高框架的性能。
