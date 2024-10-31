@@ -79,6 +79,72 @@ class sub extends sup {
 继承`React.Component`,
 因此如果用到`Constructor`就必须写`super()`才初始化`this`。
 
+这时候，
+在调用`super()`的时候，
+我们一般都需要传入`props`作为参数，
+如果不传进去，
+`React`内部也会将其定义在组件实例中。
 
+```js
+// React 内部
+const instance = new YourComponent(props);
+instance.props = props;
+```
+所以无论有没有`constructor`，
+在`render`中`this.props`都是可以使用的，
+这是`React`自动附带的，
+是可以不写的：
 
+```js
+class HelloMessage extends React.Component {
+  render() {
+    return <div>nice to meet you! {this.props.name}</div>;
+  }
+}
+```
 
+但是也不建议使用`super()`代替`super(props)`。
+
+因为在`React`会在`类组件`构造函数生成`实例`后再给`this.props`赋值，
+所以在不传递`props`在`super`的情况下，
+调用`this.props`为`undefined`，
+如下情况：
+
+```js
+class Button extends React.Component {
+  constructor(props) {
+    super(); // 没传入 props
+    console.log(props); // {}
+    console.log(this.props); // undefined
+    // ...
+  }
+}
+```
+而传入`props`的则都能正常访问，
+确保了`this.props`在构造函数执行完毕之前已被赋值，
+更符合逻辑，
+如下：
+
+```js
+class Button extends React.Component {
+  constructor(props) {
+    super(props); // 没传入 props
+    console.log(props); // {}
+    console.log(this.props); // {}
+    // ...
+  }
+}
+```
+
+## 三、总结
+
+在`React`中，
+类组件基于`ES6`，
+所以在`constructor`中必须使用`super`。
+
+在调用`super`过程，
+无论是否传入`props`，
+`React`内部都会将`props`赋值给组件实例`props`属性中。
+
+如果只调用了`super()`，
+那么`this.props`在`super()`和构造函数结束之间仍是`undefined`。
