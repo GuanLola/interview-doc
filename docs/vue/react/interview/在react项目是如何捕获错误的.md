@@ -89,3 +89,54 @@ class ErrorBoundary extends React.Component {
 在`react 16`版本之后，
 会把渲染期间发生的所有错误打印到控制台。
 
+除了错误信息和`JavaScript`栈外，
+`React 16`还提供了组件栈追踪。
+
+现在你可以准确地查看发生在组件树内的错误信息：
+
+![追踪错误 抛出错误的 例子，你看看](../../images/react/interview/在react项目是如何捕获错误的/1.png)
+
+可以看到在错误信息下方文字中存在一个组件栈，
+便于我们追踪错误。
+
+`对`于错误边界无法捕获的异常，
+如`事件处理`过程中发生`问题`并`不`会`捕`获到，
+是因为其`不`会在`渲染`期间`触`发，
+并`不`会导`致`渲染时候`问题`。
+
+这种情况可以使用`js`的`try...catch...`语法，
+如下：
+```js
+class MyComponent extends React.Component {
+
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+    this.handleClick = this.handleClick.bind(this);
+  }
+
+  handleClick() {
+    try {
+      // 执行操作，如有错则会抛出
+    } catch(error) {
+      this.setState({ error });
+    }
+  }
+
+  render() {
+    if (this.state.error) {
+      return <h1>Caught an error.</h1>
+    }
+    return <button onClick={this.handleClick}>Click Me</button>
+  }
+}
+```
+除此之外还可以通过`onerror`事件。
+
+```js
+window.addEventListener('error', function(event) { ... })
+```
+
+
+
+
