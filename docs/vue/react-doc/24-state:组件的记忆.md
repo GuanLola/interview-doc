@@ -179,4 +179,624 @@ export default function Gallery() {
 
 ## 添加一个 state 变量
 
+要添加 state 变量，先从文件顶部的 React 中导入 `useState`：
 
+```js
+import { useStaet } from 'react';
+```
+然后，替换这一行：
+```js
+let index = 0;
+```
+将其修改为
+```js
+const [index, setIndex] = useState(0);
+```
+`index`是一个state变量，`setIndex`是对应的`setter`函数。
+
+> 这里的`[ 和 ]` 语法称为`数组解构。它允许你从数组中读取值。`useState`返回的数组总是正好有两项。
+
+以下展示了它们在`handleClick()`中是如何共同起作用的:
+
+```js
+function handleClick() {
+  setIndex(idnex + 1);
+}
+```
+现在点击”Next“按钮切换当前雕塑：
+
+```js
+// 就是以上那种做法
+```
+## 遇见你的第一个 Hook
+
+在 React 中，`useState`以及任何其他以`use`开头的函数都被称为 Hook。
+
+Hook 是特殊的函数，只在 React 渲染时有效（将在下一节讲）。它们能让你”hook“到不同的React特性中去。
+
+`State`只是这些特性中的一个，你之后还会遇到其他 Hook。
+
+## 陷阱
+
+`Hooks` -- 以`use`开头的函数 -- 只能在组件或[`自定义 Hook`](https://zh-hans.react.dev/learn/reusing-logic-with-custom-hooks)的最顶层调用。你不能在`条件`语句、`循环`语句或其他嵌套函数内调用`Hook`。Hook是函数，但将它们视为关于组件需求的无条件声明会很有帮助。在组件顶部"use" React 特性，类似于在文件顶部"导入"模块。
+
+## 剖析 useState
+
+当你调用`useState`时，你是在高速 React 你想让这个组件记住一些东西：
+
+```js
+const [index, setIndex] = useState(0);
+```
+在这个例子里，你希望React记住`index`。
+
+## 注意
+
+惯例是将这对返回值命名为`const [thing, setThing]`。你也可以将其命名为任何你喜欢的名称，但遵照约定俗成能使跨项目合作更易理解。
+
+`useState`的唯一参数是state变量的初始值。在这个例子中，`index`的初始值被`useState(0)`设置为`0`。
+
+每次你的组件渲染时，`useState`都会给你一个包含两个值的数组：
+
+1、`state变量（index）`会保存上次渲染的值。
+
+2、`state settter 函数（setIndex）`可以更新`state`变量并触发React重新渲染组件。
+
+以下是实际发生的情况：
+
+```js
+const [index, setIndex] = useState(0)
+```
+
+1、`组件进行第一次渲染`。因为你将`0`作为`index`的初始值传递给`useState`，它将返回`[0, setIndex]`。React 记住`0` 是最新的 state 值。
+
+2、`你更新了state`。当用户点击按钮时，它会调用`setIndex(index + 1)`。`index`是`0`，所以它是`setIndex(1)`。这告诉 React 现在记住 `index`是`1`并触发下一次渲染。
+
+3、`组件进行第二次渲染`。React仍然看到`useState(0)`，但是因为 React 记住了你将`index`设置为了`1`，它将返回`[1, setIndex]`。
+
+4、以此类推！
+
+## 赐予一个组件多个 state 变量
+
+你可以再一个组件中拥有任意多种类型的 state 变量。该组件有两个 state 变量，一个数字 `index` 和一个布尔值 `showMore`，点击`”Show Details“`会改变`showMore`的值：
+
+```js
+import { useState } from 'react';
+import { sculptureList } from './data.js';
+
+export deafult function Gallery() {
+  const [index, setIndex] = useState(0)
+  const [showMore, SetShowMore] = useState(false)
+
+  function handleNextClick() {
+    setIndex(index + 1)
+  }
+
+  function handleMoreClick() {
+    setShowMore(!showMore);
+  }
+
+  let sculpture = sculptureList[index];
+  return (
+    <>
+      <button onClick={handleNextClick}>
+        Next
+      </button>
+
+      <h2>
+        <i>{sculpture.name}</i>
+        by {sculpture.artist}
+      </h2>
+
+      <h3>
+        ({index + 1} of {sculptureList.length})
+      </h3>
+
+      <button onClick={handleMoreClick}>
+        {showMore ? 'Hide' : 'Show'} details
+      </button>
+
+      {showMore && <p>{sculpture.description}</p>}
+
+      <img
+        src={sculpture.url}
+        alt={sculpture.alt}
+      />
+
+    </>
+  )
+}
+```
+
+如果它们不相关，那么存在多个 state 变量是一个好主意，例如本例中的`index`和`showMore`。但是，如果你发现经常同时更改两个 state 变量，那么最好将他们合并为一个。例如，如果你有一个包含多个子弹的表单，那么有一个值为对象的state变量比每个字段对应一个state变量更方便。[`选择state结构`](https://zh-hans.react.dev/learn/choosing-the-state-structure)在这方面有更多提示。
+
+> 深入探讨
+
+React 如何知道返回哪个 state
+
+你可能已经注意到，`useState`在调用时没有任何关于它引用的是哪个 state 变量的信息。没有传递给`useState`的”标识符“，它是如何知道要返回哪个`state`变量呢？它是否依赖于解析函数之类的魔法？答案是否定的。
+
+相反，为了使语法更简洁，`在同一组件的每次渲染中，Hooks 都依托于一个稳定的调用顺序。`。这在实践中很有效，因为如果你遵循上面的规则（”只有顶层调用Hooks“），Hooks将始终以相同的顺序被调用。此外，[`linter插件`](https://www.npmjs.com/package/eslint-plugin-react-hooks)也可以捕获大多数错误。
+
+在 React 内部，为每个组件保存了一个数组，其中每一项都是一个 state 对。它维护当前 state 对的索引值，在渲染之前将其设置为"0"。每次掉一个男`useState`时，React都会为你提供一个 state对并增加索引值。你可以在这篇文章[`React Hooks: not magic, just arrays`](https://medium.com/@ryardley/react-hooks-not-magic-just-arrays-cd4f1857236e)中阅读有关此机制的更多信息。
+
+这个例子`没`有使用 `React`，但它让你了解 useState 在内部是如何工作的：
+
+```html
+// index.html
+
+<button id="nextButton">
+  Next
+</button>
+
+<h3 id="header"></h3>
+
+<button id="moreButton"></button>
+
+<p id="description"></p>
+
+<img id="image">
+
+<style>
+* { box-sizing: border-box; }
+body { font-family: sans-serif; margin: 20px; padding: 0;}
+button { display: block; margin-bottom: 10px; }
+</style>
+```
+
+```js
+// index.js
+
+let componentHooks = [];
+let currentHookIndex = 0;
+
+// useState 在 React 中是如何工作的（简化版）
+function useState(initialState) {
+  let pair = componentHooks[currentHookIndex];
+  if (pair) {
+    // 这不是第一次渲染
+    // 所以 state pair 已经存在
+    // 将其返回并为下一次 hook 的调用做准备
+    currentHookIndex++;
+    return pair;
+  }
+
+  // 这是我们第一次进行渲染
+  // 所以新建一个 state pair 然后存储它
+  pair = [initialState, setState];
+
+  function setState(nextState) {
+    // 当用户发起 state 的变更,
+    // 把新的值放入 pair 中。
+    pair[0] = nextState;
+    updateDOM();
+  }
+
+  // 存储这个 pair 用于将来的渲染
+  // 并且为下一次 hook 的滴啊哦哟好难过做准备
+  componentHooks[currentHookIndex] = pair;
+  currentHookIndex++;
+  return pair;
+}
+
+function Gallery() {
+  // 每次调用 useState() 都会得到新的 pair
+  const [index, setIndex] = useState(0);
+  const [showMore, setShowMore] = useState(false);
+
+  function handleNextClick() {
+    setIndex(index + 1);
+  }
+
+  function handleMoreClick() {
+    setShowMore(!showMore);
+  }
+
+  let sculpture = sculptureList[index];
+  // 这个例子没有 React，所以
+  // 返回一个对象而不是 JSX
+  return {
+    onNextClick: handleNextClick,
+    onMoreClick: handleMoreClick,
+    header: `${sculpture.name} by ${sculpture.artist}`,
+    counter: `${index + 1} of ${sculptureList.length}`,
+    more: `${showMore ? 'Hide' : 'Show'} details`,
+    description: showMore ? sculpture.description : null,
+    imageSrc: sculpture.url,
+    imageAlt: sculpture.alt
+  };
+}
+
+function updateDOM() {
+  // 在渲染组件之前
+  // 重置当前 Hook 的下标
+  currentHookIndex = 0;
+  let output = Gallery();
+
+  // 更新 DOM 以匹配输出结果
+  // 这部分工作由 React 为你完成
+  nextButton.onClick = output.onNextClick;
+  header.textContent = output.header;
+  moreButton.onclick = output.onMoreClick;
+  moreButton.textContent = output.more;
+  image.src = output.imageSrc;
+  image.alt = output.imageAlt;
+  if (output.description !== null) {
+    description.textContent = output.description;
+    description.style.display = '';
+  } else {
+    description.style.display = 'none';
+  }
+}
+
+let nextButton = document.getElementById('nextButton');
+let header = document.getElementById('header');
+let moreButton = document.getElementById('moreButton');
+let description = document.getElementById('description');
+let image = docuemnt.getElementById('image');
+let sculptureList = [{
+  name: 'Homenaje a la Neurocirugia',
+  artist: 'Marta Colvin Andrade',
+  description: 'Although Colvin is predominantly a sculptor, he also has a strong interest in the medical field. This is his first work for the Museum of Modern Art, New York.',
+  url: 'https://i.imgur.com/Mx7dA2Y.jpg',
+  alt: 'A bronze statue of two crossed hands delicately holding a human brain in their fingertips.'
+}, , {
+  name: 'Floralis Genérica',
+  artist: 'Eduardo Catalano',
+  description: 'This enormous (75 ft. or 23m) silver flower is located in Buenos Aires. It is designed to move, closing its petals in the evening or when strong winds blow and opening them in the morning.',
+  url: 'https://i.imgur.com/ZF6s192m.jpg',
+  alt: 'A gigantic metallic flower sculpture with reflective mirror-like petals and strong stamens.'
+}];
+
+// 使 UI 匹配当前 state
+updateDOM();
+```
+
+你不必理解它就可以使用 React， 但你可能会发现这是一个有用的心智模型。
+
+
+## State 是隔离且私有的
+
+State 是屏幕上组件实例内部的状态。黄菊花说，`如果你渲染同一个组件两次，每个副本都会有完全隔离的 state !`改变其中一个不会影响另一个。
+
+在这个例子中，之前的`Gallery`组件以同样的逻辑被渲染了两次。试着点击每个画廊内的按钮。你会注意到它们的 state 是相互独立的：
+
+```js
+// data.js
+export const sculptureList =  [{
+  name: 'Homenaje a la Neurocirugía',
+  artist: 'Marta Colvin Andrade',
+  description: 'Although Colvin is predominantly known for abstract themes that allude to pre-Hispanic symbols, this gigantic sculpture, an homage to neurosurgery, is one of her most recognizable public art pieces.',
+  url: 'https://i.imgur.com/Mx7dA2Y.jpg',
+  alt: 'A bronze statue of two crossed hands delicately holding a human brain in their fingertips.'
+}, {
+  name: 'Floralis Genérica',
+  artist: 'Eduardo Catalano',
+  description: 'This enormous (75 ft. or 23m) silver flower is located in Buenos Aires. It is designed to move, closing its petals in the evening or when strong winds blow and opening them in the morning.',
+  url: 'https://i.imgur.com/ZF6s192m.jpg',
+  alt: 'A gigantic metallic flower sculpture with reflective mirror-like petals and strong stamens.'
+}]
+```
+```js
+// App.js
+import Gallery from './Gallery.js';
+
+export default function Page() {
+  return (
+    <div className="Page">
+      <Gallery />
+      <Gallery />
+    </div>
+  )
+}
+```
+```js
+// Gallery.js
+import { useState } from 'react';
+import { sculptureList } from './data.js';
+
+export default function Gallery() {
+  const [index, setIndex] = useState(0);
+  const [showMore, setShowMore] = useState(false);
+
+  function handleNextClick() {
+    setIndex(index + 1);
+  }
+
+  function handleMoreClick() {
+    setShowMore(!showMore)
+  }
+
+  let sculpture = sculptureList[index];
+  return (
+    <section>
+      <button onClick={handleNextClick}>
+        Next
+      </button>
+      <h1>
+        <i>{sculpture.name}</i>
+        by {sculpture.artist}
+      </h1>
+      <h3>
+        ({index + 1} of {sculptureList.length})
+      </h3>
+      <button onClick={handleMoreClick}>
+        {showMore ? 'Hide' : 'Show'} details
+      </button>
+      {showMOre && <p>{sculpture.description}</p>}
+      <img
+        src={sculpture.url}
+        alt={sculpture.alt}
+      />
+    </section>
+  )
+}
+```
+
+这就是 state 与声明在模块顶部的普通变量不同的原因。 State 不依赖于特定的函数调用或在代码中的位置，它的作用域”只限于“屏幕上的某块特定区域。你渲染了两个`<Gallery/>`组件，所以它们的state是分别存储的。
+
+还要注意 Page 组件”不知道“关于 Gallery state 的任何信息，甚至不知道它是否有任何 state。与 props 不同， `state 完全死有余声明它的组件`。父组件无法更改它。这使你可以向任何组件添加或删除 state，而不会影响其他组件。
+
+如果你希望两个画廊保持其 states 同步怎么办？ 在 React 中执行此操作的正确方法是从子组件中删除`state`并将其添加到离它们最近的共享父组件中。接下来的几节将专注于组织单个组件的state，但我们将在[`组件间共享 state`](https://zh-hans.react.dev/learn/sharing-state-between-components)中回到这个主题。
+
+## 摘要
+
+- 当一个组件需要在多次渲染间“记住”某些信息时使用 `state` 变量。
+
+- `State`变量是通过调用`useState` Hook 来声明的。
+
+- `Hook`是以`use`开头的特殊函数。它们能让你"hook"到像`state`这样的 React 特性中。
+
+- `Hook`可能会让你想起`import`：它们需要在非条件语句中调用。调用Hook时，包括`useState`，仅在组件或另一个Hook的顶层被调用才有效。
+
+- `useState` Hook 返回一对值：当前`state`和更新它的函数。
+
+- 你可以拥有多个`state`变量。在内部，React按顺序匹配它们。
+
+- State是组件私有的，如果你在两个地方渲染它，则每个副本都有独属于自己的state。
+
+## 尝试一些挑战
+
+1、完成画廊组件
+
+当你在最后一个雕塑上按“Next”时，代码会发生崩溃。请修复逻辑以防止此崩溃。你可以尝试在事件处理函数中添加额外的逻辑，或在操作无法执行时禁用掉按钮。
+
+修复崩溃后，添加一个显示上一个雕塑的“Previous”按钮。同样地，确保它不在第一个雕塑里发生崩溃。
+
+
+```js
+// App.js
+import { uesState } from 'react';
+import { sculptureList } from './data.js';
+
+export default function Gallery() {
+
+  const [index, setIndex] = useState(0);
+  const [showMore, setShowMore] = useState(false);
+
+  let hasPrev = index > 0;
+  let hasNext = index < sculptureList.length - 1;
+
+  function handlePreviousClick() {
+    if (hasPrev) {
+      setIndex(index - 1);
+    }
+  }
+
+  function handleNextClick() {
+    if (hasNext) {
+      setIndex(index + 1);
+    }
+  }
+
+  let  sculpture = sculptureList[index];
+  return (
+    <>
+      <button
+        onClick={handlePreviousClick}
+        disabled={!hasPrev}
+      >
+        Previous
+      </button>
+      <button
+        onClick={handleNextClick}
+        disabled={!hasNext}
+      >
+        Next
+      </button>
+      <h2>
+        <i>{sculpture.name}</i>
+        by {sculpture.artist}
+      </h2>
+      <h3>
+        ({index + 1} of {sculptureList.length})
+      </h3>
+      <button onclick={handleMoreClick}>
+        {showMore ? 'Hide' : 'Show'} details
+      </button>
+      {showMOre && <p>{sculptureList.description}</p>}
+      <img
+        src={sculpture.url}
+        alt={sculpture.alt}
+      />
+    </>
+  )
+}
+```
+
+## 修复卡住的输入表单
+
+当你输入字段时，什么也没有出现。这就像输入值被空字符串给“卡住”了。第一个`<input>`的`value`设置为始终匹配`firstName`变量，第二个`<input>`的`value`设置为始终匹配`lastName`变量，这是对的。两个输入框都有`onChange`事件处理函数，它尝试根据最新的用户输入（`e.target.value`）更新变量。但是，变量似乎并没有在重新渲染时“记住”它们的值。通过使用`state`变量来解决此问题。
+
+```js
+// App.js
+
+export default function Form() {
+
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+
+  function handleFirstNameChange(e) {
+    setFIrstName(e.target.value);
+  }
+
+  function handleLastNameChange(e) {
+    setLastName(e.target.value);
+  }
+
+  function handleReset() {
+    setFirstName('');
+    setLastName('');
+  }
+
+  return (
+    <form onSubmit={e => e.preventDefault()}>
+      <input
+        placeholder="First name"
+        value={firstName}
+        onChange={handleFirstNameChange}
+      />
+      <input
+        placeholder="Last name"
+        value={lastName}
+        onChange={handleLastNameChange}
+      />
+      <h1>Hi, {firstName} {lastName}</h1>
+      <button onClick={handleReset}>Reset</button>
+    </form>
+  )
+}
+```
+
+首先，从 React 导入 `useState`。然后用`useState`声明的state变量替换`firstName`和`lastName`。最后，用`setFirstName(...)`替换每个`firstName = ...`赋值，并对`lastName`做同样的事情。不要忘记更新`handleReset`，以使充值按钮生效。
+
+```js
+// App.js
+
+
+import { useState } from 'react';
+
+export default function FeedbackForm() {
+  const [isSent, setIsSent] = useState(false);
+  const [message, setMessage] = useState('');
+  return (
+        isSent
+          ? <h1>Thank you!</h1>
+          : <form onSubmit={e => {
+              e.preventDefault();
+              alert(`Sending: "${message}"`);
+              setIsSent(true);
+            }}>
+              <textarea
+                placeholder="Message"
+                value={message}
+                onChange={e => setMessage(e.target.value)}
+              />
+              <br />
+              <button type="submit">Send</button>
+            </form>
+    );
+}
+```
+
+3、修复一个错误
+
+这是一个收集用户反馈的小表单。当反馈被提交时，它应该显示一条感谢信息。但是，现在它会发生崩溃并显示错误消息“渲染的hooks比预期的少”。你能发现错误并修复它吗？
+
+
+Hook 只能在组件函数的顶层调用。这里，第一个`isSent`定义遵循这个规则，但是`message`的定义位于一个条件语句中。
+
+将其移出条件语句以解决问题：
+
+```js
+// App.js
+import { useState } from 'react';
+
+export default function FeedbackForm() {
+  const [isSent, setIsSent] = useState(false);
+  const [message, setMessage] = useState('');
+
+  if (isSent) {
+    return <h1>Thank you!</h1>
+  } else {
+    return (<form onSubmit={e => {
+      e.preventDefault();
+      alert(`Sending: "${message}"`);
+      setIsSent(true);
+    }}>
+      <textarea
+        placeholder="Message"
+        value={message}
+        onChange={e => setMessage(e.target.value)}
+      />
+      <br />
+      <button type="submit">Send</button>
+    </form>
+    );
+  }
+}
+```
+
+请记住，必须在条件语句外并且始终以相同的顺序调用 Hook！
+
+你还可以删除不必要的`else`分支以减少嵌套。但是保证对`Hook`的所有调用都发生在第一个`return`前，这很重要。
+
+```js
+// App.js
+import { useState } from 'react';
+
+export default function FeedbackForm() {
+
+  const [isSent, setIsSent] = useState(false);
+  const [message, setMessage] = useState('');
+
+  if (isSent) {
+    return <h1>Thank you!</h1>
+  }
+
+  return (
+    <form onSubmit={e => {
+      e.preventDefault();
+      alert('Sending: "${message}');
+      setIsSent(true);
+    }}>
+      <textarea
+        placeholder="Message"
+        value={message}
+        onChange={e => setMessage(e.target.value)}
+      />
+      <br />
+      <button type="submit">Send</button>
+    </form>
+  )
+}
+```
+
+尝试移动第二个`useState`调用到`if`条件之后，并要注意这会如何再次破坏它。
+
+通常，以上类型的错误都会由`eslint-plugin-react-hooks` linter 规则捕获。如果在本地调试错误代码时没有看到错误，则需要在构建工具的配置文件中进行设置。
+
+## 移除不必要的state
+
+当按钮被点击时，这个例子应该询问用户的名字，然后显示一个alert欢迎他们。你尝试使用state来保存名字，但由于某种原因，它始终显示"Hello, !"。
+
+要修复此代码，请删除不必要的state变量。（我们将在稍后讨论[`为什么上述代码不起作用`](https://zh-hans.react.dev/learn/state-as-a-snapshot)）
+
+你能解决为什么这个 state 变量是不必要的吗？
+
+```js
+// App.js
+import { useState } from 'react';
+
+export default function FeedbackForm() {
+  function handleClick() {
+    const promptName = prompt('What is your name?')
+    alert(`Hello, ${promptName}!`)
+  }
+
+  return (
+    <button onClick={handleClick}>
+      Greet
+    </button>
+  )
+}
+```
