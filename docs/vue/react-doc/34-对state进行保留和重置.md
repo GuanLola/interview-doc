@@ -874,10 +874,822 @@ export default function Messenger() {
 ```js
 // ContactList.js
 
-
+export default function ContactList({
+  selectedContact,
+  contacts,
+  onSelect
+}) {
+  return (
+    <section>
+      <ul>
+        {contacts.map(contact =>
+          <li key={contact.id}>
+            <button onClick={() => {
+              onSelect(contact);
+            }}>
+              {contact.name}
+            </button>
+          </li>
+        )}
+      </ul>
+    </section>
+  );
+}
 ```
 
 ```js
 // Chat.js
+import { useState } from 'react';
+
+export default function Chat({ contact }) {
+  const [text, setText] = useState('');
+
+  return (
+    <section className="chat">
+      <textarea
+        value={text}
+        placeholder={'跟 ' + contact.name + ' 聊一聊'}
+      />
+      <br />
+      <button>发送到 {contact.email}</button>
+    </section>
+  )
+}
+```
+
+`为被移除的组件保留 state`
+
+在真正的聊天应用中，你可能会想在用户再次选择前一个收件人时恢复输入`state`。对于一个不可见的组件，有几种方式可以让它的`state`”活下去“：
+
+- 与其只渲染现在这一个聊天，你可以把 `所有` 聊天都渲染出来，但用 `CSS` 把其他聊天隐藏起来。这些聊天就不会从树中被移除了，所以它们的内部`state`会被保留下来。这种解决方法对于简单`UI`非常有效。但如果要隐藏的树形结构很大且包含了大量的`DOM`节点，那么性能就会变得很差。
+
+- 你可以进行[状态提升](https://zh-hans.react.dev/learn/sharing-state-between-components)并在父组件中保存每个收件人的草稿消息。要实现这一点，你可以让`Chat`组件通过读取[localStorage](https://developer.mozilla.org/zh-CN/docs/Web/API/Window/localStorage)对其`state`进行初始化，并把草稿保存在那里。
+
+无论采取哪种策略，与 `Alice` 的聊天在概念上都不同于与`Bob`的聊天，因此根据当前收件人为`<Chat>`树指定一个`key`是合理的。
+
+## 摘要
+
+- 只要在相同位置渲染的是相同组件，`React`就会保留状态。
+
+- `state`不会被保存在`JSX`标签里。它与你在树中放置该`JSX`的位置相关联。
+
+- 你可以通过为一个子树指定一个不同的`key`来重置它的`state`。
+
+- 不要嵌套组件的定义，否则你会意外地导致`state`被重置。
+
+## 挑战
+
+1、修复丢失的输入框文本
+
+这个例子在你按下按钮时会展示一条信息，但同时也会意外地重置输入框。为什么会发生这种情况？修复它，使按下按钮不再导致输入框文本重置。
+
+```js
+// App.js
+import { useState } from 'react';
+
+export default function App() {
+  const [showHint, setShowHint] = useState(false);
+
+  if (showHint) {
+    return (
+      <div>
+        <p><i>提示：你最喜欢的城市？</i></p>
+        <Form />
+        <button onClick={() => { setShowHint(false); }}>
+          隐藏提示
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <Form />
+      <button onClick={() => { setShowHint(true); }}>
+        显示提示
+      </button>
+    </div>
+  )
+}
+
+function Form() {
+  const [text, setText] = useState('');
+
+  return (
+    <textarea
+      value={text}
+      onChange={e => setText(e.target.value)}
+    />
+  )
+}
+```
+----
+
+```js
+import { useState } from 'react';
+
+export default function App() {
+  const [showHint, setShowHint] = useState(false);
+  if (showHint) {
+    return (
+      <div>
+        <p><i>提示：你最喜欢的城市？</i></p>
+        <Form />
+        <button onClick={() => {
+          setShowHint(false);
+        }}>隐藏提示</button>
+      </div>
+    );
+  }
+  return (
+    <div>
+      <Form />
+      <button onClick={() => {
+        setShowHint(true);
+      }}>显示提示</button>
+    </div>
+  );
+}
+
+function Form() {
+  const [text, setText] = useState('');
+  return (
+    <textarea
+      value={text}
+      onChange={e => setText(e.target.value)}
+    />
+  );
+}
 
 ```
+
+----
+
+更改
+
+```js
+// App.js
+import { useState } from 'react';
+
+export default function App() {
+  const [showHint, setShowHint] = useState(false);
+
+  return (
+    <div>
+      { showHint && <p><i>提示：你最喜欢的城市？</i></p> }
+      <Form />
+      <button onClick={() => {
+        setShowHint(!showHint);
+      }}>
+        { showHint ? '隐藏提示' : '显示提示'}
+      </button>
+    </div>
+  )
+}
+
+function Form() {
+  const [text, setText] = useState('');
+  return (
+    <textarea
+      value={text}
+      onChange={e => setText(e.target.value)}
+    />
+  )
+}
+```
+
+## 答案
+
+问题在于`Form`被渲染在了不同的位置。在`if`分支里，`Form`是`<div>`的第二个子组件，但在`else`分支里它是第一个子组件。所以相同位置的组件类型发生了变化。第一个位置时而包含一个`p`，时而包含一个`Form`；而第二个位置时而包含一个`Form`，时而包含一个`button`。每当组件类型发生变化时，`React`都会重置`state`。
+
+最简单的解决方案是将各个分支合并，这样`Form`就总会在相同位置渲染：
+
+```js
+// App.js
+import { useState } from 'react';
+
+export default function App() {
+  const [showHint, setShowHint] = useState(false);
+  return (
+    <div>
+      {showHint &&
+        <p><i>提示：你最喜欢的城市？</i></p>
+      }
+      <Form />
+      {showHint ? (
+        <button onClick={() => {
+          setShowHint(false);
+        }}>隐藏提示</button>
+      ) : (
+        <button onClick={() => {
+          setShowHint(true);
+        }}>显示提示</button>
+      )}
+    </div>
+  );
+}
+
+function Form() {
+  const [text, setText] = useState('');
+  return (
+    <textarea
+      value={text}
+      onChange={e => setText(e.target.value)}
+    />
+  )
+}
+```
+其实，你还可以在`else`分支的`<Form />`之前加个`null`，以匹配`if`分支的结构：
+
+```js
+// App.js
+import { useState } from 'react';
+
+export default function App() {
+  const [showHint, setShowHint] = useState(false);
+
+  if (showHint) {
+    return (
+      <div>
+        <p><i>提示：你最喜欢的城市？</i></p>
+        <Form />
+        <button onClick={() => {
+          setShowHint(false);
+        }}>隐藏提示</button>
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      {null}
+      <Form />
+      <button onClick={() => {
+        setShowHint(true);
+      }}>显示提示</button>
+    </div>
+  )
+}
+
+function Form() {
+  const [text, setText] = useState('');
+  return (
+    <textarea
+      value={text}
+      onChange={e => setText(e.target.value)}
+    />
+  )
+}
+```
+
+`2、交换两个表单字段`
+
+交换两个表单字段
+
+这个表单可以让你输入姓氏和名字。它还有一个复选框控制哪个字段放在前面。当你勾选复选框时，”姓氏“字段将出现在”名字“字段之前。
+
+它几乎可以正常使用，但有一个`bug`。如果你填写了”名字“输入框并勾选复选框，文本将保留在第一个输入框（也就是现在的”姓氏“）。修复它，使得输入框文本在你调换顺序时 `也` 会跟着移动。
+
+```js
+// App.js
+import { useState } from 'react';
+
+export default function App() {
+  const [reverse, setReverse] = useState(false);
+
+  if (reverse) {
+    return (
+      <>
+        <Field label="姓氏" />
+        <Field label="名字" />
+        {checkbox}
+      </>
+    );
+  } else {
+    return (
+      <>
+        <Field label="名字" />
+        <Field label="姓氏" />
+        {checkbox}
+      </>
+    )
+  }
+}
+
+function Field({ label }) {
+  const [text, setText] = useState('');
+  return (
+    <label>
+      {label}
+      <input
+        type="text"
+        value={text}
+        placeholder={label}
+        onChange={e => setText(e.target.value)}
+      />
+    </label>
+  )
+}
+```
+
+我自己用`key`去区分两个不同的`Field`。
+
+## 答案
+
+似乎对于这两个字段来说，只知道它们在父组件中的位置中的位置并不足以实现功能。有没有办法告诉`React`如何匹配多次重新渲染中的`state`?
+
+为`if`和`else`分支中的两个`<Field>`组件都指定一个`key`。这样可以告诉`React`如何为两个`<Field>`”匹配“正确的状态 -- 即使它们在父组件中的顺序会发生变化：
+
+```js
+// App.js
+import { useState } from 'react';
+
+export default function App {
+  const [reverse, setReverse] = useState(false);
+
+  let checkbox = (
+    <label>
+      <input
+        type="checkbox"
+        checked={reverse}
+        onChange={e => setReverse(e.target.checked)}
+      />
+      调换顺序
+    </label>
+  )
+
+  if (reverse) {
+    return (
+      <>
+        <Field key="lastName" label="姓氏" />
+        <Field key="firstName" label="名字" />
+        {checkbox}
+      </>
+    );
+  } else {
+    return (
+      <>
+        <Field key="firstName" label="名字" />
+        <Field key="lastName" label="姓氏" />
+      </>
+    );
+  }
+}
+
+function Field({ label }) {
+  const [text, setText] = useState('');
+  return (
+    <label>
+      {label}
+      <input
+        type="text"
+        value={text}
+        placeholder={label}
+        onChange={e => setText(e.target.value)}
+      />
+    </label>
+  );
+}
+```
+
+`3、重置详情表单`
+
+这是一个可编辑的联系人列表。你可以编辑所选联系人的详细信息，然后点击”保存“进行更新或点击”重置“来撤销你的修改。
+
+当你选中另一个联系人（比如`Alice`），状态就会更新，但表单会一直显示之前那个联系人的详细信息。修复它，使表单在所选联系人改变时重置。
+
+```js
+import { useState } from 'react';
+import ContactList from './ContactList.js';
+import EditContact from './EditContact.js';
+
+const initialContacts = [
+  { id: 0, name: 'Taylor', email: 'taylor@mail.com' },
+  { id: 1, name: 'Alice', email: 'alice@mail.com' },
+  { id: 2, name: 'Bob', email: 'bob@mail.com' }
+];
+
+export default function ContactManager() {
+  const [contacts, setContacts] = useState(initialContacts);
+  const [selectedId, setSelectedId] = useState(0);
+  const selectedContact = contacts.find(c => c.id === selectedId);
+
+  return (
+    <div>
+      <ContactList
+        contacts={contacts}
+        selectedId={selectedId}
+        onSelect={id => setSelectedId(id)}
+      />
+      <hr />
+      <EditContact
+        initialData={selectedContact}
+        onSave={handleSave}
+      />
+    </div>
+  )
+}
+```
+---
+
+```js
+// ContactList.js
+export default function ContactList({
+  contacts,
+  selectedId,
+  onSelect
+}) {
+  return (
+    <section>
+      <ul>
+        {contacts.map(contact =>
+          <li key={contact.id}>
+            <button onClick={() => {
+              onSelect(contact.id);
+            }}>
+              {contact.id === selectedId ?
+                <b>{contact.name}</b> :
+                contact.name
+              }
+            </button>
+          </li>
+        )}
+      </ul>
+    </section>
+  )
+}
+```
+
+```js
+// EditContact.js
+import { useState } from 'react';
+
+export default function EditContact({ initialData, onSave }) {
+  const [name, setName] = useState(initialData.name);
+  const [email, setEmail] = useState(initialData.email);
+
+  return (
+    <section>
+      <label>
+        名称:
+        <input
+          type="text"
+          value={name}
+          onChange={e => setName(e.target.value)}
+        />
+      </label>
+      <label>
+        邮箱：
+        <input
+          type="email"
+          value={email}
+          onChange={e => setEmail(e.target.value)}
+        />
+      </label>
+      <button onClick={() => {
+        const updatedData = {
+          id: initialData.id,
+          name: name,
+          email: email
+        };
+        onSave(updatedData);
+      }}>
+        保存
+      </button>
+      <button onClick={() => {
+        setName(initialData.name);
+        setEmail(initialData.email);
+      }}>
+        重置
+      </button>
+    </section>
+  )
+}
+```
+
+## 答案
+
+将`key={selectedId}`赋给`EditContact`组件。这样在不同联系人之间切换将重置表单：
+
+```js
+// App.js
+
+const initialContacts = [
+  { id: 0, name: 'Taylor', email: 'taylor@mail.com' },
+  { id: 1, name: 'Alice', email: 'alice@mail.com' },
+  { id: 2, name: 'Bob', email: 'bob@mail.com' }
+]
+
+export default function ContactManager() {
+  const [contacts, setSelectedId] = useState(initialContacts);
+  const [selectedId, setSelectedId] = useState(0);
+  const selectedContact = contacts.find(c => c.id === selectedId);
+
+  function handleSave(updatedData) {
+    const nextContacts = contacts.map(c => {
+      if (c.id === updatedData.id) {
+        return updatedData;
+      } else {
+        return c;
+      }
+    });
+    setContacts(nextContacts);
+  }
+
+  return (
+    <div>
+      <ContactList
+        contacts={contacts}
+        selectedId={selectedId}
+        onSelect={id => setSelectedId(id)}
+      />
+      <hr />
+      <EditContact
+        key={selectedId}
+        initialData={selectedContact}
+        onSave={handleSave}
+      />
+    </div>
+  )
+}
+```
+
+```js
+// ContactList.js
+
+export default function ContactList({
+  contacts,
+  selectedId,
+  onSelect
+}) {
+  return (
+    <section>
+      <ul>
+        {contacts.map(contact =>
+          <li key={contact.id}>
+            <button onClick={() => {
+            }}>
+              {contact.id === selectedId ?
+                <b>{contact.name}</b> :
+                contact.name
+              }
+            </button>
+          </li>
+        )}
+      </ul>
+    </section>
+  )
+}
+```
+
+```js
+// EditContact.js
+import { useState } from 'react';
+
+export default function EditContact({ initialData, onSave }) {
+  const [name, setName] = useState(initialData.name);
+  const [email, setEmail] = useState(initialData.email);
+
+  return (
+    <section>
+      <label>
+        名称:
+        <input
+          type="text"
+          value={name}
+          onChange={e => setName(e.target.value)}
+        />
+      </label>
+      <label>
+        邮箱:
+        <input
+          type="email"
+          value={email}
+          onChange={e => setEmail(e.target.value)}
+        />
+      </label>
+      <button onClick={() => {
+      }}>
+        保存
+      </button>
+      <button onClick={() => {
+        setName(initialData.name);
+        setEmail(initialData.email);
+      }}>
+        重置
+      </button>
+    </section>
+  )
+}
+```
+
+`4、清除正在加载的图片`
+
+当你点击”下一张“时，浏览器会开始加载下一张图片。但因为它是在相同的`<img>`标签中显示的，所以默认情况下，你在下一张图片加载完成前都会看到上一张图片。如果文本必须始终与图片一一对应，那么这种特性可能并不是我们想要的。调整它使得上一章图片在你点击”下一张“时立即被清除。
+
+```js
+// App.js
+import { useState } from 'react';
+
+let images = [{
+  place: 'Penang, Malaysia',
+  src: 'https://i.imgur.com/FJeJR8M.jpg'
+}, {
+  place: 'Lisbon, Portugal',
+  src: 'https://i.imgur.com/dB2LRbj.jpg'
+}, {
+  place: 'Bilbao, Spain',
+  src: 'https://i.imgur.com/z08o2TS.jpg'
+}, {
+  place: 'Valparaíso, Chile',
+  src: 'https://i.imgur.com/Y3utgTi.jpg'
+}, {
+  place: 'Schwyz, Switzerland',
+  src: 'https://i.imgur.com/JBbMpWY.jpg'
+}, {
+  place: 'Prague, Czechia',
+  src: 'https://i.imgur.com/QwUKKmF.jpg'
+}, {
+  place: 'Ljubljana, Slovenia',
+  src: 'https://i.imgur.com/3aIiwfm.jpg'
+}];
+
+export default function Gallery() {
+  const [index, setIndex] = useState(0);
+  const hasNext = index < images.length - 1;
+
+  function handleClick() {
+    if (hasNext) {
+      setIndex(index + 1);
+    } else {
+      setIndex(0);
+    }
+  }
+
+  let image = images[index];
+  return (
+    <>
+      <button onClick={handleClick}>
+        下一张
+      </button>
+      <h3>
+        {images.length} 张图片中的第 {index + 1} 张
+      </h3>
+      <img key={index} src={image.src} />
+      <p>
+        {image.place}
+      </p>
+    </>
+  )
+}
+```
+
+`提示：`
+
+有没有办法让 React 重新创建 DOM 而不是复用它？
+
+`答案：`
+
+你可以为`<img>`提供一个`key`。当`key`更改时，React 将从头开始重新创建`<img>`DOM 节点。这样会导致在每张图片加载时出现一个短暂的闪白，所以你不应该对你应用里的每张图片都这样做。但是如果你想确保图片与文本始终匹配，那这么做就是合理的。
+
+```js
+// App.js
+import { useState } from 'react';
+
+let images = [{
+  place: 'Penang, Malaysia',
+  src: 'https://i.imgur.com/FJeJR8M.jpg'
+}, {
+  place: 'Lisbon, Portugal',
+  src: 'https://i.imgur.com/dB2LRbj.jpg'
+}, {
+  place: 'Bilbao, Spain',
+  src: 'https://i.imgur.com/z08o2TS.jpg'
+}, {
+  place: 'Valparaíso, Chile',
+  src: 'https://i.imgur.com/Y3utgTi.jpg'
+}, {
+  place: 'Schwyz, Switzerland',
+  src: 'https://i.imgur.com/JBbMpWY.jpg'
+}, {
+  place: 'Prague, Czechia',
+  src: 'https://i.imgur.com/QwUKKmF.jpg'
+}, {
+  place: 'Ljubljana, Slovenia',
+  src: 'https://i.imgur.com/3aIiwfm.jpg'
+}];
+
+export default function Gallery() {
+  const [index, setIndex] = useState(0);
+  const hasNext = index < images.length - 1;
+
+  function handleClick() {
+    if (hasNext) {
+      setIndex(index + 1);
+    } else {
+      setIndex(0);
+    }
+  }
+
+  let image = images[index];
+  return (
+    <>
+      <button onClick={handleClick}>
+        下一张
+      </button>
+      <h3>
+        {images.length} 张图片中的第 {index + 1} 张
+      </h3>
+      <img key={image.src} src={image.src} />
+      <p>
+        {images.place}
+      </p>
+    </>
+  )
+}
+```
+
+5、`修复列表中错位的state`
+
+在这个列表中每个`Contact`都有个`state`表示它的”显示邮箱“按钮是否已经按过了。点击`Alice`的”显示邮箱“按钮，然后勾选”以相反的顺序显示“复选框。你会注意到现在展开的是`Taylor`的邮箱，而`Alice`的邮箱已经被移到底部并被收起了。
+
+修复它，使得不管选中的顺序如何，`expanded` state 都与各个联系人相关联。
+
+```js
+// App.j
+import { useState } from 'react';
+import Contact from './Contact.js';
+
+const contacts = [
+  { id: 0, name: 'Alice', email: 'alice@mail.com' },
+  { id: 1, name: 'Bob', email: 'bob@mail.com' },
+  { id: 2, name: 'Taylor', email: 'taylor@mail.com' }
+];
+
+export default function ContactList() {
+  const [reverse, setReverse] = useState(false);
+
+  const displayedContacts = [...contacts];
+  if (reverse) {
+    displayContacts.reverse();
+  }
+
+  return (
+    <>
+      <label>
+        <input
+          type="checkbox"
+          value={reverse}
+          onChange={(e) => {
+            setReverse(e.target.checked)
+          }}
+        />{' '}
+        以相反的顺序显示
+      </label>
+      <ul>
+        {displayedContacts.map((contact, i) =>
+          <li key={i}>
+            <Contact contact={contact} />
+          </li>
+        )}
+      </ul>
+    </>
+  )
+}
+```
+
+```js
+// Contact.js
+import { useState } from 'react';
+
+export default function Contact({ contact }) {
+  const [expanded, setExpanded] = useState(false);
+
+  return (
+    <>
+      <p><b>{contact.name}</b></p>
+      {expanded &&
+        <p><i>{contact.email}</i></p>
+      }
+      <button>
+        {expanded ? '隐藏' : '显示'}邮箱
+      </button>
+    </>
+  )
+}
+```
+
+## 答案
+
+问题在于这个例子适应了`index`作为`key`:
+
+```js
+{displayedContacts.map((contact, i) =>
+  <li key={i}></li>
+)}
+```
+然而你应该让`state`与`每个特定的联系人`相关联。
+
+使用联系人的 ID 作为 `key` 就会修复这个问题：
+
+state 与树中的位置相关联。`key`让你可以指定一个特定的位置，而不依赖于顺序。
