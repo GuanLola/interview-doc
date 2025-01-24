@@ -873,7 +873,420 @@ React 将第三次渲染时的 `['travel']` 与第二次渲染时的`['general']
 
 ## 仅开发环境下的行为
 
-开启[严格模式](https://zh-hans.react.dev/reference/react/StrictMode)时，React 在每次挂载组件后都会重新挂载组件（组件的 state 与 创建的 DOM 都会被保留）。[它可以帮助你找出需要添加清理函数的Effect](https://zh-hans.react.dev/learn/synchronizing-with-effects#step-3-add-cleanup-if-needed)，
+开启[严格模式](https://zh-hans.react.dev/reference/react/StrictMode)时，React 在每次挂载组件后都会重新挂载组件（组件的 state 与 创建的 DOM 都会被保留）。[它可以帮助你找出需要添加清理函数的Effect](https://zh-hans.react.dev/learn/synchronizing-with-effects#step-3-add-cleanup-if-needed)，并在早起暴露类似竞态条件这样的 bug。此外，每当你在开发环境中保存文件时，React也会重新挂载 Effect。这些行为都仅限制开发环境。
+
+## 摘要
+
+- 与事件不同，Effect 由渲染本身引起，而非特定的交互。
+
+- Effect 允许你将组件与某些外部系统（第三方 API、网络等）同步。
+
+- 默认情况下，Effect在每次渲染（包括初始渲染）后运行。
+
+- 如果所有依赖项都与上一次渲染时相同，React 会跳过本次 Effect。
+
+- 你不能”选择“依赖项，它们是由 Effect 内部的代码所决定的。
+
+- 空的依赖数组（[]）对应于组件的”挂载“，即组件被添加到页面上时。
+
+- 仅在严格模式下的开发环境中，React会挂载两次组件，以对 Effect 进行压力测试。
+
+- 如果你的 Effect 因为重新挂载而出现问题，那么你需要实现一个清理函数。
+
+- React 会在 Effect 再次运行之前和在组件卸载时调用你的清理函数。
+
+## 尝试一些挑战
+
+1、挂载后聚焦于表单字段
+
+在下面的例子中，表单中渲染了一个`<MyInput />`组件。
+
+使用输入框的[`focus()`](https://developer.mozilla.org/zh-CN/docs/Web/API/HTMLElement/focus)方法，让`MyInput`在页面上出现时自动聚焦。已经有有一个被注释掉的实现，但它并不能正常工作。找出它为什么不起作用，并修复它。如果你熟悉`autoFocus`属性，请假装它不存在：我们正在从头开始实现相同的功能。
+
+```js
+// MyInput.js
+import { useRef, useEffect } from 'react';
+
+export default function MyInput({ value, onChange }) {
+  const ref = useRef(null);
+
+  // TODO: 下面的这种做法不会生效，请修复。
+  // ref.current.focus()
+  useEffect(() => {
+    ref.current.focus();
+  }, [ref])
+
+  return (
+    <input
+      ref={ref}
+      value={value}
+      onChange={onChange}
+    />
+  );
+}
+```
+
+要验证你的方法是否奏效，请点击”展示表单“，并确认输入框获得焦点（高亮显示并且光标位于内部）；再次点击”隐藏表单“和”展示表单“，确认输入框是否再次被高亮显示。
+
+`MyInput`组件应该只在`挂载`时获得焦点，而非每次渲染后。为了验证这一行为是否正确，点击”展示表单“，然后反复点击”大写“的复选框。点击复选框时，上方的输入框不应该获得焦点。
+
+## 答案
+
+在渲染期间调用`ref.current.focus()`是错误的。因为它是一个”副作用“。副作用应该放在事件处理程序中或通过`useEffect`来声明。在这里，这个副作用是由组件渲染引起的，而不是任何特定的交互引起的，因此应该将它放在 Effect 中。
+
+要修复这个错误，需要将`ref.current.focus()`调用包裹在`Effect`中。然后，为了确保这个 Effect 只在组件挂载时运行，而不是每一轮渲染后都运行，再添加一个空的依赖数组`[]`。
+
+```js
+// MyInput.js
+import { useRef } from 'react';
+
+export default function MyInput({ value, onChange }) {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    ref.current.focus();
+  }, []);
+
+  return (
+    <input
+      ref={ref}
+      value={value}
+      onChange={onChange}
+    />
+  );
+}
+```
+## 有条件地聚焦于表单字段
+
+有条件地聚焦于表单字段
+
+下面的表单渲染两个`<MyInput />`组件。
+
+点击”展示表单“后，注意第二个输入框会自动获取焦点。这是因为两个`<MyInput />`组件在内部抢占焦点。当你连续为两个输入框调用`focus()`时，最后一个总会”获胜“。
+
+假设你希望聚焦于第一个输入框。现在，第一个`MyInput`组件接收一个布尔类型的`shouldFocus`属性，且值设置为`true`。请修改程序逻辑，使得仅当`MyInput`接收到的`shouldFocus`属性为`true`时才调用`focus()`。
+
+```js
+// MyInput.js
+import { useRef } from 'react';
+
+export default function MyInput() {
+  const ref = useRef(null);
+
+  // TODO：只在 shouldFocus 为 true 时才调用 focus()
+  useEffect(() => {
+    if (shouldFocus) {
+      ref.current.focus();
+    }
+  }, [shouldFocus])
+
+  return (
+    <input
+      ref={ref}
+      value={value}
+      onChange={onChange}
+    />
+  )
+}
+```
+
+要验证你的方法是否奏效，请重复点击”展示表单“和”隐藏表单“。当表单显示时，只有第一个输入框该获得焦点，因为父组件在渲染第一个输入框时传入了`shouldFocus={true}`，而渲染第二个输入框时传入了`shouldFocus={false}`。同事，请确认两个输入框都能正常工作并且你都能在其中输入。
+
+## 提示
+
+你不能有条件地声明 Effect， 但你的 Effect 中可以包含条件逻辑。
+
+## 答案
+
+在 Effect 中加入条件逻辑。由于你的 Effect 中使用了 `shouldFocus`，因此需要将它指定为依赖项。这意味着如果某个输入框的`shouldFocus`由`false`变为`true`，它将在挂载后获得焦点。
+
+```js
+// MyInput.js
+import { useRef } from 'react';
+
+export default function MyInput({ shouldFocus, value, onChange }) {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (shouldFocus) {
+      ref.current.focus();
+    }
+  }, [shouldFocus]);
+
+  return (
+    <input
+      ref={ref}
+      value={value}
+      onChange={onChange}
+    />
+  );
+}
+```
+
+## 3、修复会触发两次的定时器
+
+这个`Counter`组件展示了一个每秒递增的计数器。在组件挂载时，它调用了`setInterval`。这使得`onTick`每秒运行一次。`onTick`函数会递增计数器。
+
+然而，计数器不是每秒递增一次，而是两次。这是为什么呢？找出 bug 的原因并修复它。
+
+```js
+// Counter.js
+
+export default function Counter() {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    function onTick() {
+      setCount(c => c + 1);
+    }
+
+    setInterval(onTick, 1000);
+  }, []);
+
+  return <h1>{count}</h1>;
+}
+```
+
+改为：
+
+```js
+// Counter.js
+import { useState, useEffect } from 'react';
+
+export default function Counter() {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    function onTick() {
+      setCount(c => c + 1);
+    }
+
+    const intervalId = setInterval(onTick, 1000);
+
+    return () => {
+      clearInterval(intervalId);
+    }
+
+  }, []);
+
+  return <h1>{count}</h1>
+}
+```
+
+## 展示提示
+
+请记住，`setInterval`返回一个`interval ID`，你可以将它传递给`clearInterval`来停止这个定时器。
+
+## 答案
+
+当开启[严格模式](https://zh-hans.react.dev/reference/react/StrictMode)时（例如在本站的示例沙盒（sandbox）中），React 在开环境中会将每个组件重新挂载一次。这使得计数器组件被挂载了两次，于是定时器也被设置了两次，因此计数器会每秒增加两次。
+
+然而，React的行为并不是导致这个bug的根本原因：代码中本就存在这个bug。 React的行为只是让这个 bug 更加明显。真正的原因是这个Effect开启了一个进程但没有提供清理它的方式。
+
+要修复这段代码，保存 `setInterval` 返回的 `interval ID`，并使用`clearInterval`实现一个清理函数：
+
+```js
+// Counter.js
+import { useState, useEffect } from 'react';
+
+export default function Counter() {
+  const [count, setCount] = useState(0);
+
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      setCount(c => c + 1);
+    }, 1000);
+
+    return () => {
+      clearInterval(intervalId);
+    }
+  }, [])
+
+  return <h1>{count}</h1>
+}
+```
+
+在开发环境中，React 仍然会重新挂载一次你的组件，以确保你已经正确地实现了清理函数。因此，在调用`setInterval`后会紧接着调用`clearInterval`，然后再调用`setInterval`。在生产环境中，则只调用一次`setInterval`。两种情况下用户可见的行为都是相同的：计数器每秒递增一次。
+
+## 4、解决在 Effect中获取数据的问题
+
+下面这个组件显示所选人物的传记。它在挂载时和每当`person`改变时，通过调用一个异步函数`fetchBio(person)`来加载传记。该异步函数返回一个`Promise`，最终解析为一个字符串。当请求结束时，它调用`setBio`以将该字符串显示在选择框下方。
+
+```js
+// App.js
+
+export default function Page() {
+  const [person, setPerson] = useState('Alice');
+  const [bio, setBio] = useState(null);
+
+  useEffect(() => {
+    setBio(null);
+    fetchBio(person).then(result => {
+      setBio(result);
+    });
+  }, [person]);
+
+  return (
+    <>
+      <select value={person} onChange={e => {
+         setPerson(e.target.value);
+      }}>
+        <option value="Alice">Alice</option>
+        <option value="Bob">Bob</option>
+        <option value="Taylor">Taylor</option>
+      </select>
+      <hr />
+      <p><i>{bio ?? '加载中...'}</i></p>
+    </>
+  )
+}
+```
+
+这段代码中有一个 bug。 试试先选择`Alice`，再选择`Bob`，接着立即选择`Taylor`。如果操作得足够快，你会观察到这个 bug：虽然 Taylor 被选中了，但下面的一段却说：”这是 Bob 的传记。“
+
+为什么会出现这种情况？试试修复这个 Effect 中的 bug。
+
+## 4、解决在 Effect 中获取数据的问题
+
+下面这个组件显示所选人物的传记。它在挂载时和每当`person`改变时，通过调用一个异步函数`fetchBio(person)`来加载传记。该异步函数返回一个[Promise](https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Global_Objects/Promise)，最终解析为一个字符串。当请求结束时，它调用`setBio`以将该字符串显示在选择框下方。
+
+```js
+// App.js
+import { useState, useEffect } from 'react';
+
+export default function Page() {
+  const [person, setPerson] = useState('Alice');
+  const [bio, setBio] = useState(null);
+
+  useEffect(() => {
+    setBio(null);
+    fetchBio(person).then(result => {
+      setBio(result);
+    })
+  }, [person])
+
+  return (
+    <>
+      <select value={person} onChange={e => {
+        setPerson(e.target.value);
+      }}>
+        <option value="Alice">Alice</option>
+        <option value="Bob">Bob</option>
+        <option value="taylor">Taylor</option>
+      </select>
+    </>
+  )
+}
+```
+
+这段代码中有一个 bug。 试试先选择`Alice`，再选择`Bob`，接着立即选择`Taylor`。如果操作得足够快，你会观察到这个bug：虽然 Taylor 被选中了，但下面的一段却说：”这是 Bob 的传记。“
+
+为什么会出现这种情况？试试修复这个`Effect`中的 bug。
+
+## 自写
+
+```js
+import { useState } from 'react';
+import { fetchBio } from './api.js';
+
+export default function Page() {
+  const [person, setPerson] = useState('Alice');
+  const [bio, setBio] = useState('这是Alice的传记');
+
+  return (
+    <>
+      <select value={person} onChange={e => {
+        setPerson(e.target.value);
+        setBio(null);
+        fetchBio(person).then(result => {
+          setBio(result);
+        })
+      }}>
+        <option value="Alice">Alice</option>
+        <option value="Bob">Bob</option>
+        <option value="Taylor">Taylor</option>
+      </select>
+    </>
+  );
+}
+```
+
+## 提示
+
+如果 Effect 需要异步获取某些数据，它往往需要清理函数。
+
+## 答案
+
+要触发这个 bug，事情需要按以下顺序发生：
+
+- 选中`Bob`触发`fetchBio('Bob')`。
+
+- 选中`Taylor`触发`fetchBio('Taylor')`。
+
+- `fetchBio('Taylor')`在`fetchBio('Bob')`之前完成。
+
+- 渲染`‘Taylor’`时的`Effect`调用`setBio(‘这是Taylor的传记’)`。
+
+- fetchBio('Bob') 请求完成。
+
+- 渲染‘Bob’时的 Effect 调用 setBio(‘这是Bob的传记’)。
+
+这就是为什么即使选择了 Taylor，但显示的仍然是 Bob 的传记。像这样的 bug 被称为 [竞态条件](https://en.wikipedia.org/wiki/Race_condition)，因为两个异步操作在“竞速”，并且可能会以意外的顺序完成。
+
+要修复这个 bug，添加一个清理函数：
+
+```js
+// App.js
+
+export default function Page() {
+  const [person, setPerson] = useState('Alice');
+  const [bio, setBio] = useState(null);
+
+  useEffect(() => {
+    let ignore = false;
+    setBio(null);
+    fetchBio(person).then(result => {
+      if (!ignore) {
+        setBio(result);
+      }
+    });
+    return () => {
+      ignore = true;
+    }
+  }, [person]);
+
+  return (
+    <>
+      <select value={person} onChange={e => {
+        setPerson(e.target.value);
+      }}>
+        <option value="Alice">Alice</option>
+        <option value="Bob">Bob</option>
+        <option value="Taylor">Taylor</option>
+      </select>
+      <hr />
+      <p><i>{bio ?? '加载中....'}</i></p>
+    </>
+  )
+}
+```
+
+每轮渲染的 Effect 都有其独立的 `ignore` 变量。最初，`ignore`变量被设置为`false`。但如果一个`Effect`被清理（例如，当你选择不同的人时），它的`ignore`变量会变为`true`。因此，请求完成的顺序已经不再重要。只有最后选中的人的 `Effect` 的 `ignore` 变量会是 `false`，因此它将会调用`setBio(result)`。而之前的 Effect 已经被清理，所以`if(!ignore)`的检查会阻止它们的调用`setBio`:
+
+- 选中 `Bob` 触发 `fetchBio('Bob')`。
+
+- 选中`Taylor`触发 `fetchBio('Taylor')`，并清理之前的(Bob 的) Effect。
+
+- `fetchBio('Taylor')`在`fetchBio('Bob')`之前 完成。
+
+- 渲染`Taylor`时的`Effect`调用`setBio('这是 Taylor 的传记')`。
+
+- `fetchBio('Bob')`请求完成。
+
+- 渲染`Bob`时的 Effect 不会做任何事情，因为它的 ignore 变量被设定了 true。
+
+除了忽略过时 API 调用的结果外，你还可以使用 [AbortController](https://developer.mozilla.org/zh-CN/docs/Web/API/AbortController)来取消不再需要的请求。然而，仅凭这一点还不足以防止竞态条件。因为可能在`fetch`之后还有更多的异步操作，因此使用像`ignore`这样的显示标志是解决这类问题最可靠的方法。
+
 
 
 
