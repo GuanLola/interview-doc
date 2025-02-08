@@ -1087,4 +1087,1152 @@ function ShippingForm({ country }) {
 
 理想情况下，你的自定义`Hook`名称应该清晰到即使一个不经常写代码的人也很好地猜中自定义`Hook`的功能，输入和返回：
 
-- ✅ `useData(url)` ✅ `useData(url)`
+- ✅ `useData(url)`
+- ✅ `useImpressionLog(eventName, extraData)`
+- ✅ `useChatRoom(options)`
+
+当你和外部系统同步的时候，你的自定义`Hook`名称可能会更加专业，并使用该系统特定的术语。只要对熟悉这个系统的人来说名称清晰就可以：
+
+- ✅ `useMediaQuery(query)`
+- ✅ `useSocket(url)`
+- ✅ `useIntersectionObserver(ref, options)`
+
+`保持自定义 Hook 专注于 具体的高级用例`。避免创建和使用作为`useEffect` API 本身的替代品和`wrapper`的自定义“生命周期” Hook:
+
+- 🔴 `useMount(fn)`
+- 🔴 `useEffectOnce(fn)`
+- 🔴 `useUpdateEffect(fn)`
+
+例如这个`useMount` Hook 试图保证一些代码只在"加载"时运行：
+
+```js
+function ChatRoom({ roomId }) {
+  const [serverUrl, setServerUrl] = useState('https://localhost:1234');
+
+  // 🔴 Avoid: 使用自定义“生命周期”Hook
+  useMount(() => {
+    const connection = createConnection({ roomId, serverUrl });
+    connection.connect();
+
+    post('/analytics/event', { eventName: 'visit_chat'});
+  });
+  // ...
+}
+
+// 🔴 Avoid: 创建自定义“生命周期”Hook
+function useMount(fn) {
+  useEffect(() => {
+    fn();
+  }, []); // 🔴 React Hook useEffect 缺少依赖项：'fn'
+}
+```
+像`useMount`这样的自定义“生命周期” Hook不是很适合React范式。例如示例代码有一个错误（它没有对roomId 或 serverUrl 的变化做出“响应”），但是代码检查工具并不会向你发出对应的警告，因为它只能检测`useEffect`的直接调用。并不了解你的`Hook`。
+
+如果你正在编写`Effect`，请从直接使用`React API`开始：
+
+```js
+function ChatRoom({ roomId }) {
+  const [serverUrl, setServerUrl] = useState('https://localhost:1234');
+
+  // ✅ Good: 通过用途分割的两个原始Effect
+
+  useEffect(() => {
+    const connection = createConnection({ serverUrl, roomId });
+    connection.connect();
+    return () => connection.disconnect();
+  }, [serverUrl, roomId]);
+
+  useEffect(() => {
+    post('/analytics/event', { eventName: 'visit_chat', roomId });
+  }, [roomId]);
+
+  // ...
+}
+```
+
+然后你可以（但不是必须的）为不同的高级用例提取自定义 Hook:
+
+```js
+function ChatRoom({ roomId }) {
+  const [serverUrl, setServerUrl] = useState('https://localhost:1234');
+
+  // ✅ Great: 以用途命名的自定义Hook
+  useChatRoom({ serverUrl, roomId });
+  useImpressionLog('visit_chat', { roomId });
+  // ...
+}
+```
+
+`好的自定义Hook通过限制功能使代码调用更具有声明性`。例如`useChatRoom(options)`只能连接聊天室，而`useImpressionLog(eventName, extraData)`只能向分析系统发送展示日志。如果你的自定义`Hook API`没有约束用例且非常抽象，那么在长期的运行中，它引入的问题可能比解决的问题更多。
+
+## 自定义 Hook 帮助你迁移到更好的模式
+
+`Effect`是一个[脱围机制](https://zh-hans.react.dev/learn/escape-hatches)：当需要“走出 React”且用例没有更好的内置解决方案时你可以使用他们。随着时间的推移，React团队的目标是通过给更具体的问题提供更具体的解决方案来最小化应用中的 Effect 数量。把你的 Effect 包裹进自定义 Hook，当这些解决方案可用升级代码会更加容易。
+
+让我们回到这个示例：
+
+```js
+// App.js
+import { useOnlineStatus } from './useOnlineStatus.js';
+
+function StatusBar() {
+  const isOnline = useOnlineStatus();
+  return <h1>{isOnline ? '✅ Online' : '❌ Disconnected'}</h1>;
+}
+
+function SaveButton() {
+  const isOnline = useOnlineStatus();
+
+  function handleSaveClick() {
+    console.log('✅ Progress saved');
+  }
+
+  return (
+    <button disabled={!isOnline} onClick={handleSaveClick}>
+      {isOnline ? 'Save progress' : 'Reconnecting...'}
+    </button>
+  );
+}
+
+export default function App() {
+  return (
+    <>
+      <SaveButton />
+      <StatusBar />
+    </>
+  )
+}
+```
+
+```js
+// useOnlineStatus.js
+import { useState, useEffect } from 'react';
+
+export function useOnlineStatus() {
+  const [isOnline, setIsOnline] = useState(true);
+  useEffect(() => {
+    function handleOnline() {
+      setIsOnline(true);
+    }
+    function handleOffline() {
+      setIsOnline(false);
+    }
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+  return isOnline;
+}
+```
+在上述示例中，`useOnlineStatus`借助一组`useState`和`useEffect`实现。但这不是最好的解决方案。它有许多边界用例没有考虑到。例如，它认为当组件加载时，`isOnline`已经为`true`，但是如果网络已经离线的话这就是错误的。你可以使用浏览器的`navigator.online`API来检查，但是在生成初始HTML的服务端直接使用它是没用的。简而言之这段代码可以改进。
+
+幸运的是，`React 18`包含了一个叫做`useSyncExternalStore`的专用API，这里展示了如何利用这个新 API 来重写你的`useOnlineStatus` Hook:
+
+```js
+// App.js
+import { useOnlineStatus } from './useOnlineStatus.js';
+
+function SaveButton() {
+  const isOnline = useOnlineStatus();
+
+  function handleSaveClick() {
+    console.log('✅ Progress saved');
+  }
+
+  return (
+    <button disabled={!isOnline} onClick={handleSaveClick}>
+      {isOnline ? 'Save progress' : 'Reconnecting...'}
+    </button>
+  );
+}
+
+export default function App() {
+  return (
+    <>
+      <SaveButton />
+      <StatusBar />
+    </>
+  )
+}
+```
+
+```js
+// useOnlineStatus.js
+import { useSyncExternalStore } from 'react';
+
+function subscribe(callback) {
+  window.addEventListener('online', callback);
+  window.addEventListener('offline', callback);
+  return () => {
+    window.removeEventListener('online', callback);
+    window.removeEventListener('offline', callback);
+  };
+}
+
+export function useOnlineStatus() {
+  return useSyncExternalStore(
+    subscribe,
+    () => navigator.onLine, // 如何在客户端获取值
+    () => true, // 如何在服务端
+  )
+}
+```
+
+注意 `你不需要修改任何组件` 就能完成这次迁移：
+
+```js
+function StatusBar() {
+  const isOnline = useOnlineStatus();
+  // ...
+}
+
+function SaveButton() {
+  const isOnline = useOnlineStatus();
+  // ...
+}
+```
+
+这是把`Effect`包裹进自定义`Hook`有益的另一个原因：
+
+1、你让进出`Effect`的数据流非常清晰。
+
+2、你让组件专注于目标，而不是`Effect`的准确实现。
+
+3、当 React 增加新特性时，你可以在不修改任何组件的情况下移除这些`Effect`。
+
+和[设计系统](https://uxdesign.cc/everything-you-need-to-know-about-design-systems-54b109851969s)相似，你可能会发现从应用的组件中提取通用逻辑到自定义`Hook`是非常有帮助的。这会让你的组件代码专注于目标，并且避免经常写原始 Effect。 许多很棒的自定义 Hook 是由 React 社区维护的。
+
+## 深入探讨
+
+## React会为数据获取提供内置解决方案么？
+
+我们仍然在规划细节，但是期望未来可以像这样写数据获取：
+
+```js
+import { use } from 'react'; // 还不可用！
+
+function ShippingForm({ country }) {
+  const cities = use(fetch(`/api/cities?country=${country}`));
+  const [city, setCity] = useState(null);
+  const areas = city ? use(fetch(`/api/areas?city=${city}`)) : null;
+  // ...
+}
+```
+
+比起在每个组件手动写原始 Effect，在应用中使用像上面`useData`这样的自定义 Hook，之后迁移到最终推荐方式你所需要的修改更少。但是旧的方式仍然可以有效工作，所以如果你喜欢写原始`Effect`，可以继续这样做。
+
+## 不止一个方法可以做到
+
+假设你想要使用浏览器的[`requestAnimationFrame`](https://developer.mozilla.org/zh-CN/docs/Web/API/Window/requestAnimationFrame)API 从头开始 实现一个 fade-in 动画。你也许会从一个设置动画循环的`Effect`开始。在动画的每一帧中中，你可以修改[ref 持有的](https://zh-hans.react.dev/learn/manipulating-the-dom-with-refs)DOM节点的`opacity`属性直到`1`。你的代码一开始可能是这样：
+
+```js
+// App.js
+import { useState, useRef, useEffect } from 'react';
+
+function Welcome() {
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const node = ref.current;
+
+    let startTime = performance.now();
+    let frameId = null;
+
+    function onFrame(now) {
+      const timePassed = now - startTime;
+      const progress = Math.min(timePassed / duration, 1);
+      onProgress(progress);
+      if (progress < 1) {
+        // 我们还有更多的帧需要绘制
+        frameId = requestAnimationFrame(onFrame);
+      }
+    }
+
+    function onProgress(progress) {
+      node.style.opacity = progress;
+    }
+
+    function start() {
+      onProgress(0);
+      startTime = performance.now();
+      frameId = requestAnimationFrame(onFrame);
+    }
+
+    function stop() {
+      cancelAnimationFrame(frameId);
+      startTime = null;
+      frameId = null;
+    }
+
+    start();
+    return () => stop();
+  }, []);
+
+  return (
+    <h1 className="welcome" ref={ref}>
+      Welcome
+    </h1>
+  )
+}
+
+export default function App() {
+  const [show, setShow] = useState(false);
+  return (
+    <>
+      <button>
+        {show ? 'Remove' : 'Show'}
+      </button>
+      <hr />
+      {show && <Welcome />}
+    </>
+  )
+}
+```
+
+为了让组件更具有可读性，你可能要将逻辑提取到自定义`Hook` useFadeIn:
+
+```js
+// App.js
+import { useState, useRef } from 'react';
+import { useFadeIn } from './useFadeIn.js';
+
+function Welcome() {
+  const ref = useRef(null);
+
+  useFadeIn(ref, 1000);
+
+  return (
+    <h1 className="welcome" ref={ref}>
+      Welcome
+    </h1>
+  )
+}
+
+export default function App() {
+  const [show, setShow] = useState(false);
+  return (
+    <>
+      <button onClick={() => setShow(!show)}>
+        {show ? 'Remove' : 'Show'}
+      </button>
+      <hr />
+      {show && <Welcome />}
+    </>
+  )
+}
+```
+
+```js
+// useFadeIn.js
+import { useEffect } from 'react';
+
+export function useFadeIn(ref, duration) {
+  useEffect(() => {
+    const node = ref.current;
+
+    let startTime = performance.now();
+    let frameId = null;
+
+    function onFrame(now) {
+      const timePassed = now - startTime;
+      const progress = Math.min(timePassed / duration, 1);
+      onProgress(progress);
+      if (progress < 1) {
+        // 我们还有更多的帧需要绘制
+        frameId = requestAnimationFrame(onFrame);
+      }
+    }
+
+    function onProgress(progress) {
+      node.style.opacity = progress;
+    }
+
+    function start() {
+      onProgress(0);
+      startTime = performance.now();
+      frameId = requestAnimationFrame(onFrame);
+    }
+
+    function stop() {
+      cancelAnimationFrame(frameId);
+      startTime = null;
+      frameId = null;
+    }
+
+    start();
+
+  }, [ref, duration]);
+}
+```
+
+你可以让`useFadeIn`和原来保持一致，但是也可以进一步重构。例如你可以把设置动画循环的逻辑从`useFadeIn`提取到自定义`Hook` useAnimationLoop:
+
+```js
+// App.js
+import { useState, useRef } from 'react';
+import { useFadeIn } from './useFadeIn.js';
+
+function Welcome() {
+  const ref = useRef(null);
+
+  useFadeIn(ref, 1000);
+
+  return (
+    <h1 className="welcome" ref={ref}>
+      Welcome
+    </h1>
+  )
+}
+
+export default function App() {
+  const [show, setShow] = useState(false);
+  return (
+    <>
+      <button onClick={() => setShow(!show)}>
+        {show ? 'Remove' : 'Show'}
+      </button>
+      <hr />
+      {show && <Welcome />}
+    </>
+  );
+}
+```
+
+```js
+// useFadeIn.js
+import { useState, useEffect } from 'react';
+import { experimental_useEffectEvent as useEffectEvent } from 'react';
+
+export function useFadeIn(ref, duration) {
+  const [isRunning, setIsRunning] = useState(true);
+
+  useAnimationLoop(isRunning, (timePassed) => {
+    const progress = Math.min(timePassed / duration, 1);
+    ref.current.style.opacity = progress;
+    if (progress === 1) {
+      setIsRunning(false);
+    }
+  });
+}
+
+function useAnimationLoop(isRunning, drawFrame) {
+  const onFrame = useEffectEvent(drawFrame);
+
+  useEffect(() => {
+    if (!isRunning) {
+      return;
+    }
+    const startTime = performance.now();
+
+    function tick(now) {
+      const timePassed = now - startTime;
+      onFrame(timePassed);
+      frameId = requestAnimationFrame(tick);
+    }
+
+    tick();
+    return () => cancelAnimationFrame(frameId);
+  }, [isRunning]);
+}
+```
+
+但是`没有必要`这样做。和常规函数一样，最终是由你决定在哪里划分代码不同部分之间的边界。你也可以采取不一样的方法。把大部分必要的逻辑移入一个[JavaScript类](https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Reference/Classes)，而不是把逻辑保留在`Effect`中：
+
+```js
+// App.js
+import { useState, useRef } from 'react';
+import { useFadeIn } from './useFadeIn.js';
+
+function Welcome() {
+  const ref = useRef(null);
+
+  useFadeIn(ref, 1000);
+
+  return (
+    <h1 className="welcome" ref={ref}>
+      Welcome
+    </h1>
+  );
+}
+
+export default function App() {
+  const [show, setShow] = useState(false);
+  return (
+    <>
+      <button onClick={() => setShow(!show)}>
+        {show ? 'Remove' : 'Show'}
+      </button>
+      <hr />
+      {show && <Welcome />}
+    </>
+  );
+}
+```
+
+```js
+// useFadeIn.js
+import { useEffect } from 'react';
+import { FadeInAnimation } from './animation.js';
+
+export function useFadeIn(ref, duration) {
+  useEffect(() => {
+    const animation = new FadeInAnimation(ref.current);
+    animation.start(duration);
+    return () => {
+      animation.stop();
+    };
+  }, [ref, duration]);
+}
+```
+
+```js
+// animation.js
+export class FadeInAnimation {
+  constructor(node) {
+    this.node = node;
+  }
+  start(duration) {
+    this.duration = duration;
+    this.onProgress(0);
+    this.startTime = performance.now();
+    this.frameId = requestAnimationFrame(() => this.onFrame());
+  }
+  onFrame() {
+    const timePassed = performance.now() - this.startTime;
+    const progress = Math.min(timePassed / this.duration, 1);
+    this.onProgress(progress);
+    if (progress === 1) {
+      this.stop();
+    } else {
+      // 我们还有更多的帧要绘制
+      this.frameId = requestAnimationFrame(() => this.onFrame());
+    }
+  }
+  onProgress(progress) {
+    this.node.style.opacity = progress;
+  }
+  stop() {
+    cancelAnimationFrame(this.frameId);
+    this.startTime = null;
+    this.frameId = null;
+    this.duration = 0;
+  }
+}
+```
+
+`Effect`可以连接`React`和外部系统。`Effect`之间的配合越多（例如链接多个动画），像上面的`sandbox`一样 完整地 从`Effect`和`Hook`中提取逻辑就越有意义。然后你提取的代码变成"外部系统"。这会让你的`Effect`保持简洁，因为他们只需要向已经被你移动到 React 外部的系统发送消息。
+
+上面这个示例假设需要使用`JavaScript`写`fade-in`逻辑。但使用纯[`CSS动画`](https://developer.mozilla.org/zh-CN/docs/Web/CSS/CSS_animations/Using_CSS_animations)实现这个特定的`fade-in`动画会更加简单和高效：
+
+```js
+// App.js
+import { useState } from 'react';
+import './welcome.css';
+
+function Welcome() {
+  return (
+    <h1 className="welcome">
+      Welcome
+    </h1>
+  )
+}
+
+export default function App() {
+  const [show, setShow] = useState(false);
+  return (
+    <>
+      <button onClick={() => setShow(!show)}>
+        {show ? 'Remove' : 'Show'}
+      </button>
+      <hr />
+      {show && <Welcome />}
+    </>
+  )
+}
+```
+
+```css
+// welcome.css
+
+.welcome {
+  color: white;
+  padding: 50px;
+  text-align: center;
+  font-size: 50px;
+  background-image: radial-gradient(circle, rgba(63,94,251,1) 0%, rgba(252,70,107,1) 100%);
+  animation: fadeIn 1000ms;
+}
+
+@keyframes fadeIn {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+```
+
+某些时候你甚至不需要 `Hook` !
+
+## 摘要
+
+- 自定义 Hook 让你可以在组件间`共享`逻辑。
+
+- 自定义 Hook 命名必须以 `use` 开头，后面跟一个大写字母。
+
+- 自定义 Hook 共享的只是状态逻辑，不是状态本身。
+
+- 你可以将响应值从一个`Hook`传到另一个，并且他们会保持最新。
+
+- 每次组件重新渲染时吗，所有的 `Hook` 会重新运行。
+
+- 自定义`Hook`的代码应该和组件代码一样保持纯粹。
+
+- 把自定义`Hook`收到的事件处理函数包裹到`Effect Event`。
+
+- 不要创建像`useMount`这样的自定义`Hook`。保持目标具体化。
+
+- 如何以及在哪里选择代码边界取决于你。
+
+## 尝试一些挑战
+
+1、提取 `useCounter` Hook
+
+## 第1个挑战 共5个挑战：提取`userCounter` Hook
+
+这个组件使用了一个`state`变量和一个`Effect`来展示每秒递增的一个数字。把这个逻辑提取到一个`useCounter`的自定义`Hook`中。你的目标是让`Counter`组件的实现看上去和这个一样：
+
+```js
+export default function COunter() {
+  const count = useCounter();
+  return <h1>Seconds passed: {count}</h1>;
+}
+```
+
+你需要在`useCounter.js`中编写你的自定义`Hook`，并且把它引入到`App.js`文件。
+
+原本的App.js
+
+```js
+// App.js
+import { useState, useEffect } from 'react';
+
+export default function Counter() {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => {
+      setCount(c => c + 1);
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
+  return <h1>Seconds passed: {count}</h1>
+}
+```
+
+现在变成
+```js
+// App.js
+import { useState } from 'react';
+import { useCounter } from './useCounter.js';
+
+export default function Counter() {
+  const count = useCounter();
+  return <h1>Seconds passed: {count}</h1>
+}
+```
+
+```js
+// useCounter.js
+// 在这个文件中编写你的自定义 Hook!
+import { useState, useEffect } from 'react';
+
+export function useCounter() {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => {
+      setCount(c => c + 1);
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
+  return count;
+}
+```
+
+## 答案
+
+你的代码应该像这样：
+
+```js
+// App.js
+import { useCounter } from './useCounter.js';
+
+export function Counter() {
+  const count = useCounter();
+  return <h1>Seconds passed: {count}</h1>
+}
+```
+
+```js
+// useCounter.js
+import { useState } from 'react';
+
+export function useCounter() {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => {
+      setCount(c => c + 1);
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
+  return count;
+}
+```
+
+注意`App.js`不再需要引入`useState`或者`useEffect`。
+
+## 第2个挑战 共5个挑战：让计时器的 delay 变为 可配置项
+
+这个示例中有一个由滑动条控制`state`变量`delay`，但它的值没有被使用。请将`delay`值传给自定义`Hook` useCounter，修改`useCounter` Hook，用传过去的`delay`代替硬编码`1000`毫秒。
+
+```js
+// App.js
+import { useState } from 'react';
+import { useCounter } from './useCounter.js';
+
+export default function Counter() {
+  const [delay, setDelay] = useState(1000);
+  const count = useCounter();
+  return (
+    <>
+      <label>
+        Tick duration: {delay} ms
+        <br />
+        <input
+          type="range"
+          value={delay}
+          min="10"
+          max="2000"
+          onChange={e => setDelay(Number(e.target.value))}
+        />
+      </label>
+      <hr />
+      <h1>Ticks: {count}</h1>
+    </>
+  );
+}
+```
+
+```js
+// useCounter.js
+import { useState, useEffect } from 'react';
+
+export function useCounter() {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => {
+      setCount(c => c + 1);
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
+  return count;
+}
+```
+
+---
+
+```js
+// App.js
+import { useState } from 'react';
+import { useCounter } from './useCounter.js';
+
+export default function Counter() {
+  const [delay, setDelay] = useState(1000);
+  const count = useCounter(delay);
+  return (
+    <>
+      <label>
+        Tick duration: {delay} ms
+        <br />
+        <input
+          type="range"
+          value={delay}
+          min="10"
+          max="2000"
+          onChange={e => setDelay(Number(e.target.value))}
+        />
+      </label>
+      <hr />
+      <h1>Ticks: {count}</h1>
+    </>
+  );
+}
+```
+
+```js
+// useCounter.js
+import { useState, useEffect } from 'react';
+
+export function useCounter(delay) {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => {
+      setCount(c => c + 1);
+    }, delay);
+    return () => clearInterval(id);
+  }, [delay]);
+  return count;
+}
+```
+
+使用`useCounter(delay)`将`delay`传入`Hook`。然后在`Hook`内部使用`delay`替换硬编码值`1000`。你需要在`Effect`依赖项中加入`delay`。这保证了`delay`的变化会重置`interval`。
+
+```js
+// App.js
+import { useState } from 'react';
+import { useCounter } from './useCounter.js';
+
+export default function Counter() {
+  const [delay, setDelay] = useState(1000);
+  const count = useCounter(delay);
+  return (
+    <>
+      <label>
+        Tick duration: {delay} ms
+        <br />
+        <input
+          type="range"
+          value={delay}
+          min="10"
+          max="2000"
+          onChange={e => setDelay(Number(e.target.value))}
+        />
+      </label>
+      <hr />
+      <h1>Ticks: {count}</h1>
+    </>
+  )
+}
+```
+```js
+// useCounter.js
+import { useState, useEffect } from 'react';
+
+export function useCounter(delay) {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => {
+      setCount(c => c + 1);
+    }, delay);
+    return () => clearInterval(id);
+  }, [delay]);
+  return count;
+}
+```
+
+## 第3个挑战 共5个挑战： 从`useCounter`中提取`useInterval`
+
+现在`useCounter`Hook 做两件事。设置一个`interval`，并且在每个`interval tick`内递增一次`state`变量。将设置`interval`的逻辑拆分到一个独立`Hook useInterval`。它应该有两个参数：`onTick`回调函数和`delay`。本次修改后`useCounter`的实现应该如下所示：
+
+```js
+export function useCounter(delay) {
+  const [count, setCount] = useState(0);
+  useInterval(() => {
+    setCount(c => c + 1);
+  }, delay);
+  return count;
+}
+```
+
+在`useInterval.js`文件中编写`useInterval`并在`useCounter.js`文件中导入。
+
+---
+
+```js
+// App.js
+import { useState } from 'react';
+import { useCounter } from './useCounter.js';
+
+export default function Counter() {
+  const count = useCounter(1000);
+  return <h1>Seconds passed: {count}</h1>
+}
+```
+
+```js
+// useCounter.js
+import { useState, useEffect } from 'react';
+import { useInterval } from './useInterval.js';
+
+export function useCounter(delay) {
+  const [count, setCount] = useState(0);
+  // useEffect(() => {
+  //   const id = setInterval(() => {
+  //     setCount(c => c + 1);
+  //   }, delay);
+  //   return () => clearInterval(id);
+  // }, [delay]);
+  useInterval(() => {
+    setCount(c => c + 1);
+  }, delay);
+  return count;
+}
+```
+
+```js
+// 在这里编写你自己的 Hook !
+// useInterval.js
+export function useInterval(callback, delay) {
+  useEffect(() => {
+    const id = setInterval(() => {
+      callback();
+    }, delay);
+    return () => clearInterval(id);
+  }, [callback, delay]);
+}
+```
+
+## 答案
+
+`useInterval`内部的逻辑应该是设置和清理计时器。除此之外不需要做任何事。
+
+```js
+// App.js
+import { useCounter } from './useCounter.js';
+
+export default function Counter() {
+  const count = useCounter(1000);
+  return <h1>Seconds passed: {count}</h1>
+}
+```
+
+```js
+// useCounter.js
+import { useState } from 'react';
+import { useInterval } from './useInterval.js';
+
+export function useCounter(delay) {
+  const [count, setCount] = useState(0);
+  useInterval(() => {
+    setCount(c => c + 1);
+  }, delay);
+  return count;
+}
+```
+```js
+// useInterval.js
+import { useEffect } from 'react';
+
+export function useInterval(callback, delay) {
+  useEffect(() => {
+    const id = setInterval(callback, delay);
+    return () => clearInterval(id);
+  }, [callback, delay]);
+}
+```
+
+注意这个解决方案有一些问题，你将在下一个挑战中解决他们。
+
+## 4、修复计时器重置
+
+## 第4个挑战 共5个挑战：修复计时器重置
+
+这个示例有`两个`独立的计时器。
+
+`App`组件调用`useCounter`，这个`Hook`调用`useInterval`来每秒更新一次计数器。但是`App`组件也调用`useInterval`每两秒随机更新一次页面背景色。
+
+更新页面背景色的回调函数因为一些原因从未执行过。在`useInterval`内部添加一些日志。
+
+```js
+useEffect(() => {
+  console.log('✅ Setting up an interval with delay', delay);
+  const id = setInterval(onTick, delay);
+  return () => {
+    console.log('❌ Clearing an interval with delay ', delay);
+    clearInterval(id);
+  };
+}, [onTick, delay]);
+```
+
+这些日志符合你的预期吗？如果一些不必要的`Effect`似乎重新同步了，你能猜出哪一个依赖项导致了这个情况吗？有其他方式从`Effect`中[移除依赖]
+(https://zh-hans.react.dev/learn/removing-effect-dependencies)吗？
+
+这个问题修复以后，你预期的应该是页面背景每两秒更新一次。
+
+```js
+// App.js
+import { useCounter } from './useCounter.js';
+import { useInterval } from './useInterval.js';
+
+export default function Counter() {
+  const count = useCounter(1000);
+
+  useInterval(() => {
+    const randomColor = `hsla(${Math.random() * 360}, 100%, 50%, 0.2)`;
+    document.body.style.backgroundColor = randomColor;
+  }, 2000);
+
+  return <h1>Seconds passed: {count}</h1>
+}
+```
+
+```js
+// useCounter.js
+import { useState } from 'react';
+import { useInterval } from './useInterval.js';
+
+export function useCounter(delay) {
+  const [count, setCount] = useState(0);
+  useInterval(() => {
+    setCount(c => c + 1);
+  }, delay);
+  return count;
+}
+```
+```js
+// useInterval.js
+import { useEffect } from 'react';
+import { experimental_useEffectEvent as useEffectEvent } from 'react';
+
+export function useInterval(onTick, delay) {
+  const onTickEvent = useEffectEvent(onTick)
+  useEffect(() => {
+    const id = setInterval(onTickEvent, delay);
+    return () => {
+      clearInterval(id);
+    };
+  }, [delay]);
+}
+```
+
+## 提示
+
+看上去你的`useInterval` Hook 接受事件监听器作为参数。你能想到一些包裹事件监听器的方法，让它不需要称为`Effect`的依赖项吗？
+
+## 答案
+
+和[早前这个页面](https://zh-hans.react.dev/learn/reusing-logic-with-custom-hooks#passing-event-handlers-to-custom-hooks)做的一样，在`useInterval`内部把`tick`回调函数包裹进一个`Effect Event`。
+
+这将让你可以从`Effect`的依赖项中删掉`onTick`。每次组件重新渲染时，`Effect`将不会重新同步，所以页面背景颜色变化`interval`有机会触发之前不会每秒重置一次。
+
+随着这个修改，两个`interval`都会像预期一样工作并且不会互相干扰：
+
+```js
+// App.js
+import { useCounter } from './useCounter.js';
+import { useInterval } from './useInterval.js';
+
+export default function Counter() {
+  const count = useCounter(1000);
+
+  useInterval(() => {
+    const randomColor = `hsla(${Math.random() * 360}, 100%, 50%, 0.2)`;
+    document.body.style.backgroundColor = randomColor;
+  }, 2000);
+
+  return <h1>Seconds passed: {count}</h1>;
+}
+```
+
+```js
+// useCounter.js
+import { useState } from 'react';
+import { useInterval } from './useInterval.js';
+
+export function useCounter(delay) {
+  const [count, setCount] = useState(0);
+  useInterval(() => {
+    setCount(c => c + 1);
+  }, delay);
+  return count;
+}
+```
+
+```js
+// useInterval.js
+import { useEffect } from 'react';
+import { experimental_useEffectEvent as useEffectEvent } from 'react';
+
+export function useInterval(callback, delay) {
+  const onTick = useEffectEvent(callback);
+  useEffect(() => {
+    const id = setInterval(onTick, delay);
+    return () => clearInterval(id);
+  }, [delay]);
+}
+```
+
+## 5、实现交错运动
+
+## 第5个挑战 共5个挑战：实现交错运动
+
+这个示例中，`usePointerPosition()` Hook 追踪当前指针位置。尝试移动光标或你的手指到预览区域上方，可以看到有一个红点随着你移动。它的位置被保存在变量`pos1`中。
+
+事实上，有5（!）个正在被渲染的不同红点。你看不见是因为他们现在都显示在同一位置。这就是你需要修复的问题。你想要实现的是一个”交错“运动：每个圆点应该”跟随“它前一个点的路径。例如如果你快速移动光标，第一个点应该立即跟着它，第二个应该在小小的延时后跟上第一个点，第三个点应该跟着第二个点等等。
+
+你需要实现自定义`Hook` `useDelayedValue`。它当前的实现返回的是提供给它的`value`。而你想从`delay`毫秒之前返回`value`。你可能需要一些`state`和一个`Effect`来完成这个任务。
+
+实现`useDelayedValue`后，你应该看见这些点一个接一个运动。
+
+```js
+// App.js
+import { usePointerPosition } from './usePointerPosition.js';
+
+function useDelayedValue(value, delay) {
+  // TODO: 实现这个 Hook
+  return value;
+}
+
+export default function Canvas() {
+  const pos1 = usePointerPosition();
+  const pos2 = useDelayedValue(pos1, 100);
+  const pos3 = useDelayedValue(pos2, 200);
+  const pos4 = useDelayedValue(pos3, 100);
+  const pos5 = useDelayedValue(pos4, 50);
+  return (
+    <>
+      <Dot position={pos1} opacity={1} />
+      <Dot position={pos2} opacity={0.8} />
+      <Dot position={pos3} opacity={0.6} />
+      <Dot position={pos4} opacity={0.4} />
+      <Dot position={pos5} opacity={0.2} />
+    </>
+  )
+}
+
+function Dot({ position, opacity}) {
+  return (
+    <div style={{
+      position: 'absolute',
+      backgroundColor: 'pink',
+      borderRadius: '50%',
+      opacity,
+      transform: `translate(${position.x}px, ${position.y}px)`,
+      pointerEvents: 'none',
+      left: -20,
+      top: -20,
+      width: 40,
+      height: 40,
+    }} />
+  );
+}
+```
+
+```js
+// usePointerPosition.js
+
+export function usePointerPosition() {
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  useEffect(() => {
+    function handleMove(e) {
+      setPosition({ x: e.clientX, y: e.clientY });
+      window.addEventListener('pointermove', handleMove);
+      return () => window.removeEventListener('pointermove', handleMove);
+    }
+  }, []);
+  return position;
+}
+```
+
+你需要在自定义`Hook`内部存储一个`state`变量`delayedValue`。当`value`变化时，你需要运行一个`Effect`。这个`Effect`应该在`delay`毫秒后更新`delayedValue`。你可能发现调用`setTimeout`很有帮助。
+
+这个Effect需要清理吗？
