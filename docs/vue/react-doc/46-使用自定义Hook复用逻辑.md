@@ -2235,4 +2235,4 @@ export function usePointerPosition() {
 
 你需要在自定义`Hook`内部存储一个`state`变量`delayedValue`。当`value`变化时，你需要运行一个`Effect`。这个`Effect`应该在`delay`毫秒后更新`delayedValue`。你可能发现调用`setTimeout`很有帮助。
 
-这个Effect需要清理吗？
+这个Effect需要清理吗？ 为什么？
