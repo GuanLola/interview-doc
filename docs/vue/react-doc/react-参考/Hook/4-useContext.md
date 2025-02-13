@@ -978,14 +978,68 @@ function MyApp() {
 }
 ```
 
-此处，`context value`是一个具有两个属性的`JavaScript`对象，其中一个是函数。
+此处，`context value`是一个具有两个属性的`JavaScript`对象，其中一个是函数。每当`MyApp`出现重新渲染（例如，路由更新）时，这里将会是一个`不同的`对象指向`不同的`函数，因此`React`还必须重新渲染树中调用`useContext(AuthContext)`的所有组件。
 
+在较小的应用程序中，这不是问题。但是，如果基础数据如`currentUser`没有更改，则不需要重新渲染它们。为了帮助React利用这一点，你可以使用`useCallback`包装`login`函数，并将对象创建包装到`useMemo`中。这是一个性能优化的例子：
 
+```js
+import { useState, useCallback } from 'react';
 
+function MyApp() {
+  const [currentUser, setCurrentUser] = useState(null);
 
+  const login = useCallback((response) => {
+    storeCredentials(response.credentials);
+    setCurrentUser(response.user);
+  }, []);
 
+  const contextValue = useMemo(() => ({
+    currentUser,
+    login
+  }), [currentUser, login])
 
+  return (
+    <AuthContext.Provider value={contextValue}>
+      <Page />
+    </AuthContext.Provider>
+  )
+}
+```
 
+根据以上改变，即使`MyApp`需要重新渲染，调用`useContext(AuthContext)`的组件也不需要重新渲染，除非`currentUser`发生了变化。
 
+阅读更多关于`useMemo`和`useCallback`的内容。
 
+## 疑难解答
 
+`我的组件获取不到 provider 传递的值`
+
+这里有几种常见的情况会引起这个问题：
+
+1、你在调用`useContext()`的同意组建（或下层）渲染`<SomeContext.Provider>`。把`<SomeContext.Provider>`向调用`useContext()`组件 `之上和之外` 移动。
+
+2、你可能忘记了使用`<SomeContext.Provider>`包装组件，或者你可能将组件放在树的不同部分。使用`React.DevTools`检查组件树的层级是否正确。
+
+3、你的工具可能会遇到一些构建问题，导致你在传值组件中的所看到的`SomeContext`和读值组件中所看到的`SomeContext`是两个不同的对象。例如，如果使用符号链接，就会发生这种情况。你可以通过将它们赋值给全局对象如`window.SomeContext1`和`window.SomeContext2`来验证这种情况。然后在控制台检查`window.SomeContext1 === window.SomeContext2`是否相等。如果它们是不相等的，就在构建工具层面修复这个问题。
+
+## 尽管设置了不一样的默认值，但是我总是从`context`中得到`undefined`
+
+你可能在组件树中有一个没有设置`value`的`provider`：
+
+```js
+// 🚩 不起作用：没有 value 作为 prop
+<ThemeContext.Provider>
+  <Button />
+</ThemeContext.Provider>
+```
+
+在这两种情况下，你都应该在控制台中看到`React`发出的警告。要解决这些问题，使用`value`作为`prop`：
+
+```js
+// ✅ 起作用：传递 value 作为 prop
+<ThemeContext.Provider value={theme}>
+  <Button />
+</ThemeContext.Provider>
+```
+
+注意，只有在`上层根本没有匹配的 provider 时才使用` createContext(defaultValue)调用的默认值。如果存在`<SomeContext.Provider value={undefined}>`组件在父树的某个位置，调用`useContext(SomeContext)`的组件 将会 接收到`undefined`作为`context`的值。
