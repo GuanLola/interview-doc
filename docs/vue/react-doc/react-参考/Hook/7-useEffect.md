@@ -1445,7 +1445,13 @@ function ChatRoom({ roomId }) {
 ```js
 // App.js
 
+export default function App() {
 
+  return (
+    <>
+    </>
+  )
+}
 ```
 
 
