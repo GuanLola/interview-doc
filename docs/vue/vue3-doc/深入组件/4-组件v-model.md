@@ -28,4 +28,5 @@ function update() {
 <!-- Parent.vue -->
 <Child v-model="countModel" />
 ```
-`defineModel()`返回的值是一个`ref`。它可以像其它`ref`一样被访问以及修改，
+`defineModel()`返回的值是一个`ref`。它可以像其它`ref`一样被访问以及修改，不过它能起到在父组件和当前变量之间的双向绑定的作用：
+
