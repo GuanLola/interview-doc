@@ -290,16 +290,174 @@ interface Book {
 
 const book: Book = reactive({ title: 'Vue 3 指引' })
 ```
+## TIP
 
+不推荐使用 `reactive() 的泛型`参数，因为`处理了深层次 ref 解包的返回值与泛型参数的类型不同`。
 
+## `为 computed() 标注类型`
 
+`computed()`会自动从其计算函数的返回值上推导出类型：
 
+```js
+import { ref, computed } from 'vue'
 
+const count = ref(0)
 
+// 推导得到的类型：ComputedRef<number>
+const double = computed(() => count.value * 2)
 
+// => TS Error: Property 'split' does not exist on type 'number'
+const result = double.value.split('')
+```
+你还可以通过泛型参数显式指定类型：
+```js
+const double = computed<number>(() => {
+  // 若返回值不是 number 类型则会报错
+})
+```
 
+## `为事件处理函数标注类型`
 
+在处理原生 DOM 事件时，应该为我们传递给事件处理函数的参数正确地标注类型。让我们看一下这个例子：
 
+```vue
+<script setup lang="ts">
+function handleChange(event) {
+  // `event` 隐式地标注为 `any` 类型
+  console.log(event.target.value)
+}
+</script>
 
+<template>
+  <input type="text" @change="handleChange" />
+</template>
+```
+没有类型标注时，这个 event 参数会隐式地标注为 any 类型。这也会在 tsconfig.json 中配置了 "strict": true 或 "noImplicitAny": true 时报出一个 TS 错误。因此，建议显式地为事件处理函数的参数标注类型。此外，你在访问 event 上的属性时可能需要使用类型断言：
 
+```ts
+function handleChange(event: Event) {
+  console.log((event.target as HTMLInputElement).value)
+}
+```
 
+## `为 provide / inject 标注类型​`
+
+provide 和 inject 通常会在不同的组件中运行。要正确地为注入的值标记类型，Vue 提供了一个 InjectionKey 接口，它是一个继承自 Symbol 的泛型类型，可以用来在提供者和消费者之间同步注入值的类型：
+
+```ts
+import { provide, inject } from 'vue'
+import type { InjectionKey } from 'vue'
+
+const key = Symbol() as InjectionKey<string>
+
+provide(key, 'foo') // 若提供的是非字符串值会导致错误
+
+const foo = inject(key) // foo 的类型：string | undefined
+```
+`建议将注入 key 的类型放在一个单独的文件中，这样它就可以被多个组件导入`。
+
+当使用字符串注入 key 时，注入值的类型是 unknown，需要通过泛型参数显式声明：
+
+```ts
+const foo = inject<string>('foo') // 类型：string | undefined
+```
+注意注入的值仍然可以是 undefined，因为无法保证提供者一定会在运行时 provide 这个值。
+
+当提供了一个默认值后，这个 undefined 类型就可以被移除：
+
+```ts
+const foo = inject<string>('foo', 'bar') // 类型：string
+```
+如果你确定该值将始终被提供，则还可以强制转换该值：
+
+```ts
+const foo = inject('foo') as string
+```
+如果你确定该值将始终被提供，则还可以强制转换该值：
+
+```js
+const foo = inject('foo') as string
+```
+## 为模板引用标注类型
+
+在 Vue 3.5 和 @vue/language-tools 2.1 (为 IDE 语言服务和 vue-tsc 提供支持) 中，在单文件组件中由 useTemplateRef() 创建的 ref 类型可以基于匹配的 ref attribute 所在的元素自动推断为静态类型。
+
+在无法自动推断的情况下，仍然可以通过泛型参数将模板 ref 转换为显式类型。
+
+```ts
+const el = useTemplateRef<HTMLInputElement>('el')
+```
+## 3.5 前的用法
+
+`可以通过类似于 MDN 的页面来获取正确的 DOM 接口`。
+
+注意为了严格的类型安全，有必要在访问 el.value 时使用可选链或类型守卫。`这是因为直到组件被挂载前，这个 ref 的值都是初始的 null，并且在由于 v-if 的行为将引用的元素卸载时也可以被设置为 null`。
+
+## 为组件模板引用标注类型​
+
+`在 Vue 3.5 和 @vue/language-tools 2.1 (为 IDE 语言服务和 vue-tsc 提供支持) 中，在单文件组件中由 useTemplateRef() 创建的 ref 类型可以基于匹配的 ref attribute 所在的元素自动推断为静态类型`。
+
+在无法自动推断的情况下 (如非单文件组件使用或动态组件)，仍然可以通过泛型参数将模板 ref 强制转换为显式类型。
+
+`为了获取导入组件的实例类型，我们需要先通过 typeof 获取其类型，然后使用 TypeScript 的内置 InstanceType 工具提取其实例类型`：
+
+```vue
+<!-- App.vue -->
+<script setup lang="ts">
+import { useTemplateRef } from 'vue'
+import Foo from './Foo.vue'
+import Bar from './Bar.vue'
+
+type FooType = InstanceType<typeof Foo>
+type BarType = InstanceType<typeof Bar>
+
+const compRef = useTemplateRef<FooType | BarType>('comp')
+</script>
+
+<template>
+  <component :is="Math.random() > 0.5 ? Foo : Bar" ref="comp" />
+</template>
+```
+如果组件的具体类型无法获得，或者你并不关心组件的具体类型，那么`可以使用 ComponentPublicInstance`。`这只会包含所有组件都共享的属性，比如 $el`。
+
+```js
+import { useTemplateRef } from 'vue'
+import type { ComponentPublicInstance } from 'vue'
+
+const child = useTemplateRef<ComponentPublicInstance>('child')
+```
+
+`如果引用的组件是一个泛型组件，例如 MyGenericModal`：
+
+```vue
+<!-- MyGenericModal.vue -->
+<script setup lang="ts" generic="ContentType extends string | number">
+import { ref } from 'vue'
+
+const content = ref<ContentType | null>(null)
+
+const open = (newContent: ContentType) => (content.value = newContent)
+
+defineExpose({
+  open
+})
+</script>
+```
+则需要使用 `vue-component-type-helpers` 库中的 `ComponentExposed` 来引用组件类型，因为 InstanceType 在这种场景下不起作用。
+
+```vue
+<!-- App.vue -->
+<script setup lang="ts">
+import { useTemplateRef } from 'vue'
+import MyGenericModal from './MyGenericModal.vue'
+import type { ComponentExposed } from 'vue-component-type-helpers'
+
+const modal = useTemplateRef<ComponentExposed<typeof MyGenericModal>>('modal');
+
+const openModal = () => {
+  modal.value?.open('newValue')
+}
+</script>
+```
+
+请注意在 @vue/language-tools 2.1 以上版本中，静态模板 ref 的类型可以被自动推导，上述这些仅在极端情况下需要。
