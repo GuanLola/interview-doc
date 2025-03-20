@@ -278,6 +278,7 @@ export function filterTodos(todos, tab) {
 与前面的示例不同，现在切换主题也很慢！这是因为 此版本没有调用 useMemo，因此每次重新渲染都会调用人为减速的 filterTodos。即使只有 theme 发生了变化，它也会被调用。
 
 ```js
+// App.js
 import { useState } from 'react';
 import { createTodos } from './utils.js';
 import TodoList from './TodoList.js';
@@ -317,3 +318,710 @@ export default function App() {
   );
 }
 ```
+
+```js
+// TodoList.js
+import { filterTodos } from './utils.js'
+
+export default function TodoList({ todos, theme, tab }) {
+  const visibleTodos = filterTodos(todos, tab);
+  return (
+    <div className={theme}>
+      <ul>
+        <p><b>Note: <code>filterTodos</code> is artificially slowed down!</b></p>
+        {visibleTodos.map(todo => (
+          <li key={todo.id}>
+            {todo.completed ?
+              <s>{todo.text}</s> :
+              todo.text
+            }
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+```
+
+```js
+// utils.js
+export function createTodos() {
+  const todos = [];
+  for (let i = 0; i < 50; i++) {
+    todos.push({
+      id: i,
+      text: "Todo " + (i + 1),
+      completed: Math.random() > 0.5
+    });
+  }
+  return todos;
+}
+
+export function filterTodos(todos, tab) {
+  console.log('[ARTIFICIALLY SLOW] Filtering ' + todos.length + ' todos for "' + tab + '" tab.');
+  let startTime = performance.now();
+  while (performance.now() - startTime < 500) {
+    // 在 500 毫秒内什么都不做以模拟极其缓慢的代码
+  }
+
+  return todos.filter(todo => {
+    if (tab === 'all') {
+      return true;
+    } else if (tab === 'active') {
+      return !todo.completed;
+    } else if (tab === 'completed') {
+      return todo.completed;
+    }
+  });
+}
+```
+
+然而，这是 删除了人为减速后 的相同代码。此时你应该能感觉缺少 useMemo 后效果差异非常明显。
+
+很多时候，没有使用记忆化的代码可以正常工作。如果你的交互速度足够快，你可能不需要记忆化。(就是把人为变慢的那段代码去掉)。
+
+你可以尝试增加 utils.js 中待办事项的数量，看看有什么变化。这个特定的计算一开始并不是很昂贵，但如果待办事项的数量显著增加，大部分开销将用于重新渲染而不是过滤。继续阅读下文，了解如何使用 useMemo 优化重新渲染。
+
+## 跳过组件的重新渲染
+
+在某些情况下，useMemo 还可以帮助你优化重新渲染子组件的性能。为了说明这一点，假设这个 TodoList 组件将 visibleTodos 作为 props 传递给子 List 组件：
+
+```js
+export default function TodoList({ todos, tab, theme }) {
+  // ...
+  return (
+    <div className={theme}>
+      <List items={visibleTodos} />
+    </div>
+  );
+}
+```
+
+你已经注意到切换 theme 属性会使应用程序冻结片刻，但是如果你从 JSX 中删除 <List />，感觉会很快。这说明尝试优化 List 组件是值得的。
+
+`默认情况下，当一个组件重新渲染时，React 会递归地重新渲染它的所有子组件`。这就是为什么当 TodoList 使用不同的 theme 重新渲染时，List 组件 也会 重新渲染。这对于不需要太多计算来重新渲染的组件来说很好。但是如果你已经确认重新渲染很慢，你可以通过将它包装在 memo 中，这样当它的 props 跟上一次渲染相同的时候它就会跳过本次渲染：
+
+```js
+import { memo } from 'react';
+
+const list = memo(function List({ items }) {
+  // ...
+});
+```
+通过此更改，如果 List 的所有 props 都与上次渲染时相同，则 List 将跳过重新渲染。这就是缓存计算变得重要的地方！想象一下，你在没有 useMemo 的情况下计算了 visibleTodos：
+
+```js
+export default function TodoList({ todos, tab, theme }) {
+  // 每当主题发生变化时，这将是一个不同的数组……
+  const visibleTodos = filterTodos(todos, tab);
+  return (
+    <div className={theme}>
+      {/* ... 所以List的props永远不会一样，每次都会重新渲染 */}
+      <List items={visibleTodos} />
+    </div>
+  );
+}
+```
+
+在上面的示例中，filterTodos 函数总是创建一个不同数组，类似于 {} 总是创建一个新对象的方式。通常，这不是问题，但这意味着 List 属性永远不会相同，并且你的 memo 优化将不起作用。这就是 useMemo 派上用场的地方：
+
+```js
+export default function TodoList({ todos, tab, theme }) {
+  // 告诉 React 在重新渲染之间缓存你的计算结果...
+  const visibleTodos = useMemo(
+    () => filterTodos(todos, tab),
+    [todos, tab] // ...所以只要这些依赖项不变...
+  );
+  return (
+    <div className={theme}>
+      {/* ... List 也就会接受到相同的 props 并且会跳过重新渲染 */}
+      <List items={visibleTodos} />
+    </div>
+  );
+}
+```
+
+`通过将 visibleTodos 的计算函数包裹在 useMemo 中，你可以确保它在重新渲染之间具有相同值`，直到依赖项发生变化。你 不必 将计算函数包裹在 useMemo 中，除非你出于某些特定原因这样做。在此示例中，这样做的原因是你将它传递给包裹在 memo 中的组件，这使得它可以跳过重新渲染。添加 useMemo 的其他一些原因将在本页进一步描述。
+
+## 深入探讨
+
+## 记忆单个 JSX 节点
+
+你可以将 `<List />` JSX 节点本身包裹在 useMemo 中，而不是将 List 包裹在 memo 中：
+
+```js
+export default function TodoList({ todos, tab, theme }) {
+  const visibleTodos = useMemo(() => filterTodos(todos, tab), [todos, tab]);
+  const children = useMemo(() => <List items={visibleTodos} />, [visibleTodos]);
+  return (
+    <div className={theme}>
+      {children}
+    </div>
+  );
+}
+```
+
+他们的行为表现是一致的。如果 visibleTodos 没有改变，List 将不会重新渲染。
+
+
+像 <List items={visibleTodos} /> 这样的 JSX 节点是一个类似 { type: List, props: { items: visibleTodos } } 的对象。创建这个对象的开销很低，但是 React 不知道它的内容是否和上次一样。这就是为什么默认情况下，React 会重新渲染 List 组件。
+
+
+但是，如果 React 发现其与之前渲染的 JSX 是完全相同的，它不会尝试重新渲染你的组件。这是因为 JSX 节点是 不可变的（immutable）。JSX 节点对象不可能随时间改变，因此 React 知道跳过重新渲染是安全的。然而，为了使其工作，节点必须 实际上是同一个对象，而不仅仅是在代码中看起来相同。这就是 useMemo 在此示例中所做的。
+
+手动将 JSX 节点包裹到 useMemo 中并不方便，比如你不能在条件语句中这样做。这就是为什么通常会选择使用 memo 包装组件而不是使用 useMemo 包装 JSX 节点。
+
+## 跳过重新渲染和总是重新渲染之间的区别
+
+第 1 个示例 共 2 个挑战: `用 useMemo 和 memo 跳过重新渲染`
+
+在此示例中，List 组件被 人为地减速了，以便可以看到当渲染的 React 组件真正变慢时会发生什么。尝试切换选项卡并切换主题。
+
+切换选项卡感觉很慢，因为它迫使减速的 List 重新渲染。这是预料之中的，因为选项卡 tab 已更改，因此你需要在屏幕上展示用户的新选择。
+
+接下来，尝试切换主题。感谢 useMemo 和 memo，尽管被人为减速了，但是它还是很快！由于作为依赖性传递给 useMemo 的 todos 与 tab 都没有发生改变，因此 visibleTodos 不会发生改变。由于 visibleTodos 数组从上一次渲染之后就没有发生改变，所以 List 会跳过重新渲染。
+
+```js
+// App.js
+import { useState } from 'react';
+import { createTodos } from './utils.js';
+import TodoList from './TodoList.js';
+
+const todos = createTodos();
+
+export default function App() {
+  const [tab, setTab] = useState('all');
+  const [isDark, setIsDark] = useState(false);
+
+  return (
+    <>
+      <button onClick={() => setTab('all')}>
+        All
+      </button>
+      <button onClick={() => setTab('active')}>
+        Active
+      </button>
+      <button onClick={() => setTab('completed')}>
+        Completed
+      </button>
+      <br />
+      <label>
+        <input
+          type="checkbox"
+          checked={isDark}
+          onChange={e => setIsDark(e.target.checked)}
+        />
+        Dark mode
+      </label>
+      <hr />
+      <TodoList
+        todos={todos}
+        tab={tab}
+        theme={isDark ? 'dark' : 'light'}
+      />
+    </>
+  );
+}
+```
+```js
+// TodoList.js
+import { useMemo } from 'react';
+import List from './List.js';
+import { filterTodos } from './utils.js'
+
+export default function TodoList({ todos, theme, tab }) {
+   const visibleTodos = useMemo(
+    () => filterTodos(todos, tab),
+    [todos, tab]
+  );
+   return (
+    <div className={theme}>
+      <p><b>Note: <code>List</code> is artificially slowed down!</b></p>
+      <List items={visibleTodos} />
+    </div>
+  );
+}
+```
+
+```js
+import { memo } from 'react';
+const List = memo(function List({ items }) {
+  console.log('[ARTIFICIALLY SLOW] Rendering <List /> with ' + items.length + ' items');
+  let startTime = performance.now();
+  while (performance.now() - startTime < 500) {
+    // 在 500 毫秒内不执行任何操作以模拟极慢的代码
+  }
+  return (
+    <ul>
+      {items.map(item => (
+        <li key={item.id}>
+          {item.completed ?
+            <s>{item.text}</s> :
+            item.text
+          }
+        </li>
+      ))}
+    </ul>
+  );
+});
+
+export default List;
+```
+
+
+```js
+// utils.js
+export function createTodos() {
+  const todos = [];
+  for (let i = 0; i < 50; i++) {
+    todos.push({
+      id: i,
+      text: "Todo " + (i + 1),
+      completed: Math.random() > 0.5
+    });
+  }
+  return todos;
+}
+
+export function filterTodos(todos, tab) {
+  return todos.filter(todo => {
+    if (tab === 'all') {
+      return true;
+    } else if (tab === 'active') {
+      return !todo.completed;
+    } else if (tab === 'completed') {
+      return todo.completed;
+    }
+  });
+}
+```
+
+## 第 2 个示例 共 2 个挑战: 总是重新渲染一个组件
+
+在这个例子中，List 的实现也被 人为地减慢了，这样就可以看到当渲染的某些 React 组件真的很慢时会发生什么。尝试切换选项卡并切换主题。
+
+与前面的示例不同，现在切换主题也很慢！这是因为 此版本中没有使用 useMemo，所以 visibleTodos 始终是一个不同的数组，并且速度变慢的 List 组件无法跳过重新渲染。
+
+```js
+// App.js
+import { useState } from 'react';
+import { createTodos } from './utils.js';
+import TodoList from './TodoList.js';
+
+const todos = createTodos();
+
+export default function App() {
+  const [tab, setTab] = useState('all');
+  const [isDark, setIsDark] = useState(false);
+  return (
+    <>
+      <button onClick={() => setTab('all')}>
+        All
+      </button>
+      <button onClick={() => setTab('active')}>
+        Active
+      </button>
+      <button onClick={() => setTab('completed')}>
+        Completed
+      </button>
+      <br />
+      <label>
+        <input
+          type="checkbox"
+          checked={isDark}
+          onChange={e => setIsDark(e.target.checked)}
+        />
+        Dark mode
+      </label>
+      <hr />
+      <TodoList
+        todos={todos}
+        tab={tab}
+        theme={isDark ? 'dark' : 'light'}
+      />
+    </>
+  );
+}
+```
+
+```js
+import List from './List.js';
+import { filterTodos } from './utils.js'
+
+export default function TodoList({ todos, theme, tab }) {
+  const visibleTodos = filterTodos(todos, tab);
+  return (
+    <div className={theme}>
+      <p><b>Note: <code>List</code> is artificially slowed down!</b></p>
+      <List items={visibleTodos} />
+    </div>
+  );
+}
+```
+```js
+// List.js
+import { memo } from 'react';
+
+const List = memo(function List({ items }) {
+  console.log('[ARTIFICIALLY SLOW] Rendering <List /> with ' + items.length + ' items');
+  let startTime = performance.now();
+  while (performance.now() - startTime < 500) {
+    // 在 500 毫秒内不执行任何操作以模拟极慢的代码
+  }
+
+  return (
+    <ul>
+      {items.map(item => (
+        <li key={item.id}>
+          {item.completed ?
+            <s>{item.text}</s> :
+            item.text
+          }
+        </li>
+      ))}
+    </ul>
+  );
+});
+
+export default List;
+```
+
+```js
+// utils.js
+export function createTodos() {
+  const todos = [];
+  for (let i = 0; i < 50; i++) {
+    todos.push({
+      id: i,
+      text: "Todo " + (i + 1),
+      completed: Math.random() > 0.5
+    });
+  }
+  return todos;
+}
+```
+
+然而，这是 删除了人为减速后 的相同代码。此时你应该能感觉到缺少 useMemo 后效果差异非常明显。
+
+```js
+// App.js
+import { useState } from 'react';
+import { createTodos } from './utils.js';
+import TodoList from './TodoList.js';
+
+const todos = createTodos();
+
+export default function App() {
+  const [tab, setTab] = useState('all');
+  const [isDark, setIsDark] = useState(false);
+  return (
+    <>
+      <button onClick={() => setTab('all')}>
+        All
+      </button>
+      <button onClick={() => setTab('active')}>
+        Active
+      </button>
+      <button onClick={() => setTab('completed')}>
+        Completed
+      </button>
+      <br />
+      <label>
+        <input
+          type="checkbox"
+          checked={isDark}
+          onChange={e => setIsDark(e.target.checked)}
+        />
+        Dark mode
+      </label>
+      <hr />
+      <TodoList
+        todos={todos}
+        tab={tab}
+        theme={isDark ? 'dark' : 'light'}
+      />
+    </>
+  );
+}
+```
+
+```js
+// TodoList.js
+import List from './List.js';
+import { filterTodos } from './utils.js'
+
+export default function TodoList({ todos, theme, tab }) {
+  const visibleTodos = filterTodos(todos, tab);
+  return (
+    <div className={theme}>
+      <List items={visibleTodos} />
+    </div>
+  );
+}
+```
+
+```js
+// List.js
+import { memo } from 'react';
+
+function List({ items }) {
+  return (
+    <ul>
+      {items.map(item => (
+        <li key={item.id}>
+          {item.completed ?
+            <s>{item.text}</s> :
+            item.text
+          }
+        </li>
+      ))}
+    </ul>
+  );
+}
+```
+
+```js
+// utils.js
+export function createTodos() {
+  const todos = [];
+  for (let i = 0; i < 50; i++) {
+    todos.push({
+      id: i,
+      text: "Todo " + (i + 1),
+      completed: Math.random() > 0.5
+    });
+  }
+  return todos;
+}
+
+export function filterTodos(todos, tab) {
+  return todos.filter(todo => {
+    if (tab === 'all') {
+      return true;
+    } else if (tab === 'active') {
+      return !todo.completed;
+    } else if (tab === 'completed') {
+      return todo.completed;
+    }
+  });
+}
+```
+
+很多时候，没有记忆化的代码可以正常工作。如果你的交互足够快，则不需要记忆化。
+
+请记住，在生产环境下运行 React 进行测试，并且禁用 React 开发者工具，并准备好与使用你应用程序的用户类似的设备，这样可以对你的应用程序性能有一个更加准确的判断。
+
+## 防止过于频繁地触发 Effect
+
+有时你可能会想要在 Effect 中使用变量：
+
+```js
+function ChatRoom({ roomId }) {
+  const [message, setMessage] = useState('');
+
+  const options = {
+    serverUrl: 'https://localhost:1234',
+    roomId: roomId
+  }
+
+  useEffect(() => {
+    const connection = createConnection(options);
+    connection.connect();
+    // ...
+```
+但是这样做会带来一些问题。因为 Effect 中的每一个响应式值都应该声明为其依赖。 然而如果你将 options 声明为依赖，会导致在 Effect 中不断地重新连接到聊天室：
+
+```js
+  useEffect(() => {
+    const connection = createConnection(options);
+    connection.connect();
+    return () => connection.disconnect();
+  }, [options]); // 🔴 问题：每次渲染这个依赖项都会发生改变
+  // ...
+```
+为了解决这个场景，你可以使用 useMemo 将 Effect 中使用的对象包装起来：
+
+```js
+function ChatRoom({ roomId }) {
+  const [message, setMessage] = useState('');
+
+  const options = useMemo(() => {
+    return {
+      serverUrl: 'https://localhost:1234',
+      roomId: roomId
+    };
+  }, [roomId]); // ✅ 只有当 roomId 改变时才会被改变
+
+  useEffect(() => {
+    const connection = createConnection(options);
+    connection.connect();
+    return () => connection.disconnect();
+  }, [options]); // ✅ 只有当 options 改变时才会被改变
+  // ...
+}
+```
+
+因为 useMemo 返回了缓存的对象，所以这将确保 options 对象在重新渲染期间保持不变。
+
+然而，因为 useMemo 只是一个性能优化手段，而并不是语义上的保证，所以 React 在 特定场景下 会丢弃缓存值。这也会导致重新触发 Effect，因此 最好通过将对象移动到 Effect 内部来消除对函数的依赖：
+
+```js
+function ChatRoom({ roomId }) {
+  const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    const options = { // ✅ 不需要将 useMemo 或对象作为依赖！
+      serverUrl: 'https://localhost:1234',
+      roomId: roomId
+    }
+
+    const connection = createConnection(options);
+    connection.connect();
+    return () => connection.disconnect();
+  }, [roomId]); // ✅ 只有当 roomId 改变时才会被改变
+  // ...
+```
+
+现在你的代码不需要使用 useMemo 并且更加简洁。了解移除 Effect 依赖项的更多信息。
+
+## 记忆另一个 Hook 的依赖
+
+假设你有一个计算函数依赖于直接在组件主体中创建的对象：
+
+```js
+function Dropdown({ allItems, text }) {
+  const searchOptions = { matchMode: 'whole-word', text };
+
+  const visibleItems = useMemo(() => {
+    return searchItems(allItems, searchOptions);
+  }, [allItems, searchOptions]); // 🚩 提醒：依赖于在组件主体中创建的对象
+  // ...
+```
+
+依赖这样的对象会破坏记忆化。当组件重新渲染时，组件主体内的所有代码都会再次运行。创建 searchOptions 对象的代码行也将在每次重新渲染时运行。因为 searchOptions 是你的 useMemo 调用的依赖项，而且每次都不一样，React 知道依赖项是不同的，并且每次都重新计算 searchItems。
+
+要解决此问题，你可以在将其作为依赖项传递之前记忆 searchOptions 对象 本身：
+
+```js
+function Dropdown({ allItems, text }) {
+  const searchOptions = useMemo(() => {
+    return { matchMode: 'whole-word', text };
+  }, [text]); // ✅ 只有当 text 改变时才会发生改变
+
+  const visibleItems = useMemo(() => {
+    return searchItems(allItems, searchOptions);
+  }, [allItems, searchOptions]); // ✅ 只有当 allItems 或 serachOptions 改变时才会发生改变
+  // ...
+```
+在上面的例子中，如果 text 没有改变，searchOptions 对象也不会改变。然而，更好的解决方法是将 searchOptions 对象声明移到 useMemo 计算函数的 内部：
+
+```js
+function Dropdown({ allItems, text }) {
+  const visibleItems = useMemo(() => {
+    const searchOptions = { matchMode: 'whole-word', text };
+    return searchItems(allItems, searchOptions);
+  }, [allItems, text]); // ✅ 只有当 allItems 或者 text 改变的时候才会重新计算
+  // ...
+```
+
+现在你的计算直接取决于 text（这是一个字符串，不会“意外地”变得不同）。
+
+## 记忆一个函数
+
+假设 Form 组件被包裹在 memo 中，你想将一个函数作为 props 传递给它：
+
+```js
+export default function ProductPage({ productId, referrer }) {
+function handleSubmit(orderDetails) {
+  post('/product/' + productId + '/buy', {
+    referrer,
+    orderDetails
+  });
+}
+
+return <Form onSubmit={handleSubmit} />;
+```
+
+正如 {} 每次都会创建不同的对象一样，像 function() {} 这样的函数声明和像 () => {} 这样的表达式在每次重新渲染时都会产生一个 不同 的函数。就其本身而言，创建一个新函数不是问题。这不是可以避免的事情！但是，如果 Form 组件被记忆了，大概你想在没有 props 改变时跳过它的重新渲染。总是 不同的 props 会破坏你的记忆化。
+
+要使用 useMemo 记忆函数，你的计算函数必须返回另一个函数：
+
+```js
+export default function Page({ productId, referrer }) {
+  const handleSubmit = useMemo(() => {
+    return (orderDetails) => {
+      post('/product/' + productId + '/buy', {
+        referrer,
+        orderDetails
+      });
+    };
+  }, [productId, referrer]);
+
+  return <Form onSubmit={handleSubmit} />;
+}
+```
+这看起来很笨拙！记忆函数很常见，React 有一个专门用于此的内置 Hook。将你的函数包装到 useCallback 而不是 useMemo 中，以避免编写额外的嵌套函数：
+
+```js
+export default function Page({ productId, referrer }) {
+  const handleSubmit = useCallback((orderDetails) => {
+    post('/product/' + productId + '/buy', {
+      referrer,
+      orderDetails
+    });
+  }, [productId, referrer]);
+
+  return <Form onSubmit={handleSubmit} />;
+}
+```
+上面两个例子是完全等价的。useCallback 的唯一好处是它可以让你避免在内部编写额外的嵌套函数。它没有做任何其他事情。阅读更多关于 useCallback 的内容。
+
+## 故障排除
+
+每次重新渲染时计算函数都会运行两次
+
+在 严格模式 中，React 将调用你的某些函数两次而不是一次：
+
+```js
+function TodoList({ todos, tab }) {
+  // 此组件函数将为每个渲染运行两次。
+
+  const visibleTodos = useMemo(() => {
+    // 如果任何依赖项发生更改，此计算将运行两次。
+    return filterTodos(todos, tab);
+  }, [todos, tab]);
+
+  // ...
+```
+
+这是符合预期的，不应对你的代码逻辑产生影响。
+
+这种 仅限开发环境下的 行为可帮助你 保持组件纯粹。React 使用其中一次调用的结果，而忽略另一次的结果。只要你的组件和计算函数是纯函数，这就不会影响你的逻辑。但是，如果你不小心写出带有副作用的代码，这可以帮助你发现并纠正错误。
+
+例如，这个不纯的计算函数会改变你作为 props 收到的数组：
+
+```js
+const visibleTodos = useMemo(() => {
+  // 🚩 错误：改变了 props
+  todos.push({ id: 'last', text: 'Go for a walk!' });
+  const filtered = filterTodos(todos, tab);
+  return filtered;
+}, [todos, tab]);
+```
+react 调用你的函数两次，所以你会注意到 todo 被添加了两次。你的计算不应更改任何现有对象，但可以更改你在计算期间创建的任何 新 对象。例如，如果 filterTodos 函数总是返回一个 不同 数组，你可以改为改变 那个 数组：
+
+```js
+const visibleTodos = useMemo(() => {
+  const filtered = filterTodos(todos, tab);
+  // ✅ 正确：改变在计算过程中创建的对象
+  filtered.push({ id: 'last', text: 'Go for a walk!' });
+  return filtered;
+}, [todos, tab]);
+```
+阅读 保持组件纯粹 以了解有关纯组件的更多信息。
+
+此外，请查看有关不通过对象或者数组的可变性直接 更新对象 和 更新数组 的指南。
+
+## 我调用的 useMemo 应该返回一个对象，但返回了 undefined
+这段代码不起作用：
+
