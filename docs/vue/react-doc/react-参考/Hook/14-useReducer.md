@@ -546,9 +546,321 @@ function TodoList({ username }) {
   const [state, dispatch] = useReducer(reducer, username, createInitialState);
   // ...
 ```
-需要注意的是你传入的参数是`createInitialState`这个`函数自身`，而不是执行`createInitialState()`后的返回值。
+需要注意的是你传入的参数是`createInitialState`这个`函数自身`，而不是执行`createInitialState()`后的返回值。这样传参就可以保证初始化函数不会再次运行。
 
+在上面这个例子中，`createInitialState`有一个`username`参数。如果初始化函数不需要参数就可以计算出初始值，可以把 useReducer 的第二个参数改为 null。
 
+## 使用初始化函数和直接传入初始值的区别
+
+1、使用`初始化函数`和`直接传入初始值`的区别
+
+这个示例使用了一个初始化函数，所以 createInitialState 函数只会在初次渲染的时候进行调用。即使往输入框中输入内容导致组件重新渲染，初始化函数也不会被再次调用。
+
+```js
+// TodoList.js
+import { useReducer } from 'react';
+
+function createInitialState(username) {
+  const initialTodos = [];
+  for (let i = 0; i < 50; i++) {
+    initialTodos.push({
+      id: i,
+      text: username + "'s task #" + (i + 1)
+    });
+  }
+  return {
+    draft: '',
+    todo: initialTodos,
+  }
+}
+
+function reducer(state, action) {
+  switch (action.type) {
+    case 'changed_draft': {
+      return {
+        draft: action.nextDraft,
+        todos: state.todos,
+      };
+    };
+    case 'add_todo': {
+      return {
+        draft: '',
+        todos: [{
+          id: state.todos.length,
+          text: state.draft
+        }, ...state.todos]
+      }
+    }
+  }
+}
+
+export default function TodoList({ username }) {
+  const [state, dispatch] = useReducer(reducer, username, createInitialState);
+  return (
+    <>
+      <input
+        value={state.draft}
+        onChange={e => {
+          dispatch({
+            type: 'changed_draft',
+            nextDraft: e.target.value
+          })
+        }}
+      />
+      <button onClick={() => {
+        dispatch({ type: 'add_todo' })
+      }}>Add</button>
+      <ul>
+        {state.todos.map(item => (
+          <li key={item.id}>{item.text}</li>
+        ))}
+      </ul>
+    </>
+  )
+}
+```
+
+```js
+// App.js
+import TodoList from './TodoList.js';
+
+export default function App() {
+  return <TodoList username="Taylor" />;
+}
+```
+
+2、直接传入初始值
+
+这个示例`没有使用`初始化函数，所以当你往输入框输入内容导致组件重新渲染的时候，`createInitialState`函数就会执行。虽然在渲染结果上看没有什么区别，但是多余的逻辑会导致性能变差。
+
+```js
+import { useReducer } from 'react';
+
+function createInitialState(username) {
+  const initialTodos = [];
+  for (let i = 0; i < 50; i++) {
+    initialTodos.push({
+      id: i,
+      text: username + "'s task #" + (i + 1)
+    });
+  }
+  return {
+    draft: '',
+    todos: initialTodos,
+  };
+}
+
+function reducer(state, action) {
+  switch (action.type) {
+    case 'changed_draft': {
+      return {
+        draft: action.nextDraft,
+        todos: state.todos,
+      };
+    };
+    case 'added_todo': {
+      return {
+        draft: '',
+        todos: [{
+          id: state.todos.length,
+          text: state.draft
+        }, ...state.todos]
+      }
+    }
+  }
+  throw Error('Unknown action: ' + action.type);
+}
+
+export default function TodoList({ username }) {
+  const [state, dispatch] = useReducer(
+    reducer,
+    createInitialState(username)
+  );
+  return (
+    <>
+      <input
+        value={state.draft}
+        onChange={e => {
+          dispatch({
+            type: 'changed_draft',
+            nextDraft: e.target.value
+          })
+        }}
+      />
+      <button onClick={() => {
+        dispatch({ type: 'added_todo' });
+      }}>Add</button>
+      <ul>
+        {state.todos.map(item => (
+          <li key={item.id}>
+            { item.text }
+          </li>
+        ))}
+      </ul>
+    </>
+  )
+}
+```
+
+```js
+import TodoList from './TodoList.js';
+
+export default function App() {
+  return <TodoList username="Taylor" />;
+}
+```
+
+# 疑难疑答
+
+## 我已经 dispatch 了一个 action，但是打印出来仍然还是旧的 state
+
+调用 dispatch 函数 `不会改变当前渲染的 state`：
+
+```js
+function handleClick() {
+  console.log(state.age);  // 42
+
+  dispatch({ type: 'incremented_age' }); // 用 43 进行重新渲染
+  console.log(state.age);  // 还是 42！
+
+  setTimeout(() => {
+    console.log(state.age); // 一样是 42！
+  }, 5000);
+}
+```
+
+这是因为 `state 的行为和快照一样`。更新 state 会使用新的值来对组件进行重新渲染，但是不会改变当前执行的事件处理函数里面 state 的值。
+
+如果你需要获取更新后的 state，可以手动调用 `reducer` 来得到结果：
+
+```js
+const action = { type: 'incremented_age' };
+dispatch(action);
+
+const nextState = reducer(state, action);
+console.log(state);     // { age: 42 }
+console.log(nextState); // { age: 43 }
+```
+
+# 我已经 dispatch 了一个 action，但是屏幕并没有更新
+
+React 使用 `Object.is`比较更新前后的`state`，如果`它们相等就会跳过这次更新`。这通常是因为你直接修改了对象或数组：
+
+```js
+function reducer(state, action) {
+  switch (action.type) {
+    case 'incremented_age': {
+      // 🚩 错误行为：直接修改对象
+      state.age++;
+      return state;
+    }
+    case 'changed_name': {
+      // 🚩 错误行为：直接修改对象
+      state.name = action.nextName;
+      return state;
+    }
+    // ...
+  }
+}
+```
+你直接修改并返回了一个 state 对象，所以 React 会跳过这次更新。为了修复这个错误，你应该确保哦总是`使用正确的方式更新对象`和`使用正确的方式更新数组`：
+
+```js
+function reducer(state, action) {
+  switch (action.type) {
+    case 'incremented_age': {
+      // ✅ 修复：创建一个新的对象
+      return {
+        ...state,
+        age: state.age + 1
+      };
+    }
+    case 'changed_name': {
+      // ✅ 修复：创建一个新的对象
+      return {
+        ...state,
+        name: action.nextName
+      };
+    }
+    // ...
+  }
+}
+```
+
+# 在 dispatch 后 state 的某些属性变为了 undefined
+
+请确保每个`case`语句中所返回的新的state `都复制了当前的属性`：
+
+```js
+function reducer(state, action) {
+  switch (action.type) {
+    case '': {
+      return {
+        ...state, // 不要忘记复制之前的属性！
+        age: state.age + 1
+      }
+    };
+    // ...
+  }
+}
+```
+如果上面的代码没有`...state`，返回的新的`state`就只有`age`属性。
+
+# 在 dispatch 后整个`state`都变为了`undefined`
+
+如果你的`state`错误地变成了`undefined`，可能是因为你忘记在某个分支返回`state`，合作恶化是你遗漏了某些`case`分支。可以通过在`switch`语句之后抛出一个错误来查找原因：
+
+```js
+function reducer(state, action) {
+  switch (action.type) {
+    case 'incremented_age': {
+      // ...
+    }
+    case 'edited_name': {
+      // ...
+    }
+  }
+  throw Error('Unknown action: ' + action.type);
+}
+```
+
+也可以通过使用 TypeScript 等静态检查工具来发现这类错误。
+
+# 我收到了一个报错：“Too many re-renders”
+
+你可能会收到这样一条报错信息：`Too many re-renders. React limits the number of renders to prevent an infinite loop.`。这通常是在`渲染期间`dispatch 了 action 而导致组件进入了无限循环： `dispatch`（会导致一次重新渲染）、渲染、dispatch（再次导致重新渲染），然后无限循环。大多数这样的错误是由于事件处理函数中存在错误的逻辑：
+
+```js
+// 🚩 错误：渲染期间调用了处理函数
+return <button onClick={handleClick()}>Click me</button>
+
+// ✅ 修复：传递一个处理函数，而不是调用
+return <button onClick={handleClick}>Click me</button>
+
+// ✅ 修复：传递一个内联的箭头函数
+return <button onClick={(e) => handleClick(e)}>Click me</button>
+```
+如果你没有发现上述错误，在控制台点开报错旁边的箭头以查看错误堆栈，从中查找是哪个 dispatch 函数引发的错误。
+
+# 我的 reducer 和初始化函数运行了两次
+
+`严格模式`下 React 会调用两次 `reducer`和初始化函数，但是这不应该会破坏你的代码逻辑。
+
+这个 仅限于开发模式 的行为可以帮助你 保持组件纯粹：React 会使用其中一次调用结果并忽略另一个结果。如果你的组件、初始化函数以及 reducer 函数都是纯函数，这并不会影响你的逻辑。不过一旦它们存在副作用，这个额外的行为就可以帮助你发现它。
+
+比如下面这个 reducer 函数直接修改了数组类型的 state：
+
+```js
+function reducer(state, action) {
+  switch (action.type) {
+    case 'added_todo': {
+      // 🚩 错误：直接修改数组
+      state.todos.push({ id: nextId++, text: action.text });
+    }
+    // ...
+  }
+}
+```
 
 
 
